@@ -1,5 +1,6 @@
 using System;
 using HarmonyLib;
+using SandBox.GameComponents;
 using TaleWorlds.Core;
 using TaleWorlds.MountAndBlade;
 

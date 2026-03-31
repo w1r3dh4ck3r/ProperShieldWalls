@@ -52,6 +52,10 @@
     <LangVersion>7.3</LangVersion>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
+  <!-- WSL path to the Windows game Modules folder -->
+  <PropertyGroup>
+    <WslModuleDir>/mnt/d/SteamLibrary/steamapps/common/Mount &amp; Blade II Bannerlord/Modules/$(ModuleName)</WslModuleDir>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
       <HintPath>$(GameFolder)\Modules\Bannerlord.Harmony\bin\Win64_Shipping_Client\0Harmony.dll</HintPath>
