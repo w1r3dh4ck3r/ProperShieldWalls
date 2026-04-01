@@ -8,9 +8,9 @@ using TaleWorlds.MountAndBlade;
 namespace ProperShieldWalls.Patches
 {
     /// <summary>
-    /// Patches Mission.MeleeHitCallback to skip melee collision against friendly
-    /// agents that are BEHIND the attacker. This prevents weapons from getting
-    /// caught on allies' shields and bodies during wind-up in tight formations.
+    /// Patches Mission.MeleeHitCallback to make weapons pass through friendly
+    /// agents that are BEHIND the attacker. Sets colReaction to ContinueChecking
+    /// so the native engine continues the weapon swing instead of stopping it.
     ///
     /// Performance: MeleeHitCallback only fires on actual physics hits (not every
     /// agent on the field), so this prefix runs infrequently. The cos threshold
@@ -30,7 +30,8 @@ namespace ProperShieldWalls.Patches
         public static bool Prefix(
             ref AttackCollisionData collisionData,
             Agent attacker,
-            Agent victim)
+            Agent victim,
+            ref MeleeCollisionReaction colReaction)
         {
             try
             {
@@ -48,25 +49,33 @@ namespace ProperShieldWalls.Patches
                 if (settings.AffectPlayerOnly && !attacker.IsPlayerControlled)
                     return true;
 
-                // Weapon type check (switch on int, no allocation)
-                if (!IsWeaponTypeEnabled(attacker, settings))
+                // Weapon type + timing window check
+                if (!IsWeaponBypassActive(attacker, settings, collisionData.AttackProgress))
                     return true;
 
                 // Directional check — is the victim behind the attacker?
                 if (!IsAgentBehind(attacker, victim, settings.BehindAngle))
                     return true;
 
+                // Tell the native engine to continue the swing — weapon passes through.
+                // We return true so the original MeleeHitCallback runs; it checks
+                // "if (colReaction != ContinueChecking)" and skips all processing,
+                // then returns normally — ensuring the ref parameter is properly
+                // written back to the native engine.
+                colReaction = MeleeCollisionReaction.ContinueChecking;
+
                 if (settings.EnableDebug)
                 {
+                    int progressPct = (int)(collisionData.AttackProgress * 100f);
                     InformationManager.DisplayMessage(
                         new InformationMessage(
-                            "[PSW] Attack passed through friendly behind",
+                            $"[PSW] Attack passed through friendly (progress: {progressPct}%)",
                             Colors.Cyan
                         )
                     );
                 }
 
-                return false;
+                return true;
             }
             catch (Exception ex)
             {
@@ -117,7 +126,11 @@ namespace ProperShieldWalls.Patches
             return dot < _cachedCosThreshold;
         }
 
-        private static bool IsWeaponTypeEnabled(Agent agent, Settings settings)
+        /// <summary>
+        /// Checks if the weapon type is enabled AND the current attack progress
+        /// falls within the per-weapon timing window.
+        /// </summary>
+        private static bool IsWeaponBypassActive(Agent agent, Settings settings, float attackProgress)
         {
             var wieldedWeapon = agent.WieldedWeapon;
             if (wieldedWeapon.IsEmpty)
@@ -125,35 +138,67 @@ namespace ProperShieldWalls.Patches
 
             var weaponClass = wieldedWeapon.Item?.PrimaryWeapon?.WeaponClass ?? WeaponClass.Undefined;
 
+            bool enabled;
+            float startPct, endPct;
+
             switch (weaponClass)
             {
                 case WeaponClass.OneHandedPolearm:
                 case WeaponClass.TwoHandedPolearm:
                 case WeaponClass.LowGripPolearm:
-                    return settings.PolearmEnabled;
+                    enabled = settings.PolearmEnabled;
+                    startPct = settings.PolearmBypassStart;
+                    endPct = settings.PolearmBypassEnd;
+                    break;
 
                 case WeaponClass.OneHandedSword:
-                    return settings.OneHandedSwordEnabled;
+                    enabled = settings.OneHandedSwordEnabled;
+                    startPct = settings.OneHandedSwordBypassStart;
+                    endPct = settings.OneHandedSwordBypassEnd;
+                    break;
 
                 case WeaponClass.TwoHandedSword:
-                    return settings.TwoHandedSwordEnabled;
+                    enabled = settings.TwoHandedSwordEnabled;
+                    startPct = settings.TwoHandedSwordBypassStart;
+                    endPct = settings.TwoHandedSwordBypassEnd;
+                    break;
 
                 case WeaponClass.OneHandedAxe:
-                    return settings.OneHandedAxeEnabled;
+                    enabled = settings.OneHandedAxeEnabled;
+                    startPct = settings.OneHandedAxeBypassStart;
+                    endPct = settings.OneHandedAxeBypassEnd;
+                    break;
 
                 case WeaponClass.TwoHandedAxe:
-                    return settings.TwoHandedAxeEnabled;
+                    enabled = settings.TwoHandedAxeEnabled;
+                    startPct = settings.TwoHandedAxeBypassStart;
+                    endPct = settings.TwoHandedAxeBypassEnd;
+                    break;
 
                 case WeaponClass.Mace:
                 case WeaponClass.TwoHandedMace:
-                    return settings.MaceEnabled;
+                    enabled = settings.MaceEnabled;
+                    startPct = settings.MaceBypassStart;
+                    endPct = settings.MaceBypassEnd;
+                    break;
 
                 case WeaponClass.Dagger:
-                    return settings.DaggerEnabled;
+                    enabled = settings.DaggerEnabled;
+                    startPct = settings.DaggerBypassStart;
+                    endPct = settings.DaggerBypassEnd;
+                    break;
 
                 default:
                     return false;
             }
+
+            if (!enabled)
+                return false;
+
+            // Convert 0-100 settings to 0.0-1.0 range for comparison
+            float progressNormalized = attackProgress;
+            return progressNormalized >= startPct * 0.01f
+                && progressNormalized <= endPct * 0.01f;
         }
     }
 }
