@@ -103,7 +103,12 @@
   <ItemGroup>
     <Compile Include="SubModule.cs" />
     <Compile Include="Settings.cs" />
+    <Compile Include="ShieldWallBehaviour.cs" />
+    <Compile Include="WeaponBypassConfig.cs" />
     <Compile Include="Patches\MeleeHitFriendlyBypassPatch.cs" />
+    <Compile Include="Patches\DecideCollisionReactionPatch.cs" />
+    <Compile Include="Patches\RegisterBlowPatch.cs" />
+    <Compile Include="Patches\ShieldDamagePatch.cs" />
     <Compile Include="Patches\FriendlyFireCheckPatch.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

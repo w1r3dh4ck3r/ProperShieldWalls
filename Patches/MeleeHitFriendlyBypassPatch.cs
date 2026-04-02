@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using HarmonyLib;
 using MCM.Abstractions.Base.Global;
 using TaleWorlds.Core;
@@ -8,16 +9,35 @@ using TaleWorlds.MountAndBlade;
 namespace ProperShieldWalls.Patches
 {
     /// <summary>
-    /// Patches Mission.MeleeHitCallback to make weapons pass through friendly
-    /// agents that are BEHIND the attacker. Sets colReaction to ContinueChecking
-    /// so the native engine continues the weapon swing instead of stopping it.
+    /// Core patch: makes melee weapons pass through friendly agents behind the attacker.
+    /// Clears native shield flags via FieldRefAccess, skips the original method,
+    /// and queues an attack restore via ShieldWallBehaviour in case the native
+    /// engine cancels the attack animation despite our ContinueChecking.
     /// </summary>
     [HarmonyPatch(typeof(Mission), "MeleeHitCallback")]
     internal static class MeleeHitFriendlyBypassPatch
     {
-        // Cached cos(angle) threshold — avoids trig per hit
+        [ThreadStatic]
+        internal static bool ShouldBypassFriendlyHit;
+
+        // FieldInfo handles for read-only AttackCollisionData shield flags.
+        // Field names known from runtime discovery. Uses __makeref + SetValueDirect
+        // for zero-boxing writes on the ref struct parameter.
+        private static readonly FieldInfo _shieldBlockedField;
+        private static readonly FieldInfo _shieldOnBackField;
+
         private static float _cachedAngle = -1f;
         private static float _cachedCosThreshold;
+
+        static MeleeHitFriendlyBypassPatch()
+        {
+            const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
+            _shieldBlockedField = typeof(AttackCollisionData).GetField("_attackBlockedWithShield", flags);
+            _shieldOnBackField = typeof(AttackCollisionData).GetField("_collidedWithShieldOnBack", flags);
+
+            SubModule.Log($"[PSW] Shield fields: blocked={_shieldBlockedField?.Name ?? "MISSING"}" +
+                $" back={_shieldOnBackField?.Name ?? "MISSING"}");
+        }
 
         [HarmonyPrefix]
         [HarmonyPriority(Priority.High)]
@@ -29,191 +49,128 @@ namespace ProperShieldWalls.Patches
         {
             try
             {
+                ShouldBypassFriendlyHit = false;
+
                 if (attacker == null || victim == null)
                     return true;
-
-                var settings = GlobalSettings<Settings>.Instance;
-                bool debug = settings != null && settings.EnableDebug;
-
-                // Skip enemy hits immediately — no logging for non-friendly hits
 
                 if (attacker.Team != victim.Team)
                     return true;
 
-                // === From here: friendly hit ===
-
+                var settings = GlobalSettings<Settings>.Instance;
                 if (settings == null || !settings.Enabled)
-                {
-                    if (debug) DebugMsg("SKIP: mod disabled");
                     return true;
-                }
+
+                bool debug = settings.EnableDebug;
 
                 if (settings.AffectPlayerOnly && !attacker.IsPlayerControlled)
                 {
-                    if (debug) DebugMsg("SKIP: player-only mode, attacker is AI");
+                    if (debug) DebugMsg("SKIP: player-only, attacker is AI");
                     return true;
                 }
 
-                // Weapon check (without timing — log weapon class first)
                 var wieldedWeapon = attacker.WieldedWeapon;
                 if (wieldedWeapon.IsEmpty)
+                    return true;
+
+                var weaponClass = wieldedWeapon.Item?.PrimaryWeapon?.WeaponClass ?? WeaponClass.Undefined;
+
+                if (!WeaponBypassConfig.TryGetSettings(weaponClass, settings, out var ws))
                 {
-                    if (debug) DebugMsg("SKIP: no wielded weapon");
+                    if (debug) DebugMsg($"SKIP: {weaponClass} not configured");
                     return true;
                 }
 
-                var weaponClass = wieldedWeapon.Item?.PrimaryWeapon?.WeaponClass ?? WeaponClass.Undefined;
-                if (debug) DebugMsg($"Weapon: {weaponClass} | progress: {collisionData.AttackProgress:F3}");
-
-                // Weapon type + timing window check
-                if (!IsWeaponBypassActive(weaponClass, settings, collisionData.AttackProgress, debug))
+                if (!ws.Enabled)
+                {
+                    if (debug) DebugMsg($"SKIP: {weaponClass} disabled");
                     return true;
+                }
 
-                // Directional check — is the victim behind the attacker?
+                float startNorm = ws.BypassStart * 0.01f;
+                float endNorm = ws.BypassEnd * 0.01f;
+                float progress = collisionData.AttackProgress;
+
+                if (progress < startNorm || progress > endNorm)
+                {
+                    if (debug) DebugMsg($"SKIP: progress {progress:F3} outside [{startNorm:F2}-{endNorm:F2}]");
+                    return true;
+                }
+
                 if (!IsAgentBehind(attacker, victim, settings.BehindAngle, debug))
                     return true;
 
-                // === BYPASS: weapon passes through friendly ===
+                // === BYPASS ===
+                ShouldBypassFriendlyHit = true;
+
+                // Clear shield flags via __makeref (zero-boxing, writes through ref param)
+                ClearShieldFlags(ref collisionData);
+
                 colReaction = MeleeCollisionReaction.ContinueChecking;
 
-                if (debug)
-                {
-                    int progressPct = (int)(collisionData.AttackProgress * 100f);
-                    DebugMsg($"BYPASS! {weaponClass} passed through friendly (progress: {progressPct}%)",
-                             Colors.Green);
-                }
+                // Queue attack restore in case native cancels despite ContinueChecking
+                var behaviour = Mission.Current?.GetMissionBehavior<ShieldWallBehaviour>();
+                if (behaviour != null)
+                    behaviour.RequestAttackRestore(attacker,
+                        attacker.GetCurrentAction(0),
+                        attacker.GetCurrentActionProgress(0));
 
-                return true;
+                if (debug)
+                    DebugMsg($"BYPASS {weaponClass} progress:{(int)(progress * 100f)}%", Colors.Green);
+
+                return false;
             }
             catch (Exception ex)
             {
-                SubModule.Log($"MeleeHitCallback prefix error: {ex.Message}");
+                SubModule.Log($"[PSW] MeleeHitCallback prefix error: {ex.Message}");
                 return true;
             }
         }
 
-        private static bool IsAgentBehind(Agent attacker, Agent victim, float behindAngleDegrees, bool debug)
+        [HarmonyPostfix]
+        public static void Postfix()
         {
-            if (Math.Abs(behindAngleDegrees - _cachedAngle) > 0.01f)
+            ShouldBypassFriendlyHit = false;
+        }
+
+        private static void ClearShieldFlags(ref AttackCollisionData collisionData)
+        {
+            if (_shieldBlockedField == null) return;
+            TypedReference tr = __makeref(collisionData);
+            _shieldBlockedField.SetValueDirect(tr, false);
+            _shieldOnBackField?.SetValueDirect(tr, false);
+        }
+
+        private static bool IsAgentBehind(Agent attacker, Agent victim, float angleDeg, bool debug)
+        {
+            if (Math.Abs(angleDeg - _cachedAngle) > 0.01f)
             {
-                _cachedCosThreshold = (float)Math.Cos(behindAngleDegrees * Math.PI / 180.0);
-                _cachedAngle = behindAngleDegrees;
+                _cachedCosThreshold = (float)Math.Cos(angleDeg * Math.PI / 180.0);
+                _cachedAngle = angleDeg;
             }
 
             float dx = victim.Position.x - attacker.Position.x;
             float dy = victim.Position.y - attacker.Position.y;
             float distSq = dx * dx + dy * dy;
-
-            if (distSq < 0.001f)
-            {
-                if (debug) DebugMsg("SKIP: agents overlapping");
-                return false;
-            }
+            if (distSq < 0.001f) return false;
 
             float invDist = 1f / (float)Math.Sqrt(distSq);
-            float toVictimX = dx * invDist;
-            float toVictimY = dy * invDist;
 
-            Vec3 lookDir = attacker.LookDirection;
-            float lookDistSq = lookDir.x * lookDir.x + lookDir.y * lookDir.y;
-            if (lookDistSq < 0.001f)
-            {
-                if (debug) DebugMsg("SKIP: zero look direction");
-                return false;
-            }
+            Vec3 look = attacker.LookDirection;
+            float lookSq = look.x * look.x + look.y * look.y;
+            if (lookSq < 0.001f) return false;
 
-            float lookInvDist = 1f / (float)Math.Sqrt(lookDistSq);
-            float lookX = lookDir.x * lookInvDist;
-            float lookY = lookDir.y * lookInvDist;
-
-            float dot = lookX * toVictimX + lookY * toVictimY;
-            bool isBehind = dot < _cachedCosThreshold;
+            float lookInv = 1f / (float)Math.Sqrt(lookSq);
+            float dot = (look.x * lookInv) * (dx * invDist) + (look.y * lookInv) * (dy * invDist);
+            bool behind = dot < _cachedCosThreshold;
 
             if (debug)
             {
-                int angleDeg = (int)(Math.Acos(Math.Max(-1f, Math.Min(1f, dot))) * 180.0 / Math.PI);
-                DebugMsg($"Angle: dot={dot:F2} -> {angleDeg}deg " +
-                         $"(threshold={behindAngleDegrees}deg, cos={_cachedCosThreshold:F2}) " +
-                         $"-> {(isBehind ? "BEHIND" : "IN FRONT")}");
+                int deg = (int)(Math.Acos(Math.Max(-1f, Math.Min(1f, dot))) * 180.0 / Math.PI);
+                DebugMsg($"Angle: {deg}deg (threshold:{angleDeg}deg) -> {(behind ? "BEHIND" : "IN FRONT")}");
             }
 
-            return isBehind;
-        }
-
-        private static bool IsWeaponBypassActive(WeaponClass weaponClass, Settings settings,
-            float attackProgress, bool debug)
-        {
-            bool enabled;
-            float startPct, endPct;
-
-            switch (weaponClass)
-            {
-                case WeaponClass.OneHandedPolearm:
-                case WeaponClass.TwoHandedPolearm:
-                case WeaponClass.LowGripPolearm:
-                    enabled = settings.PolearmEnabled;
-                    startPct = settings.PolearmBypassStart;
-                    endPct = settings.PolearmBypassEnd;
-                    break;
-
-                case WeaponClass.OneHandedSword:
-                    enabled = settings.OneHandedSwordEnabled;
-                    startPct = settings.OneHandedSwordBypassStart;
-                    endPct = settings.OneHandedSwordBypassEnd;
-                    break;
-
-                case WeaponClass.TwoHandedSword:
-                    enabled = settings.TwoHandedSwordEnabled;
-                    startPct = settings.TwoHandedSwordBypassStart;
-                    endPct = settings.TwoHandedSwordBypassEnd;
-                    break;
-
-                case WeaponClass.OneHandedAxe:
-                    enabled = settings.OneHandedAxeEnabled;
-                    startPct = settings.OneHandedAxeBypassStart;
-                    endPct = settings.OneHandedAxeBypassEnd;
-                    break;
-
-                case WeaponClass.TwoHandedAxe:
-                    enabled = settings.TwoHandedAxeEnabled;
-                    startPct = settings.TwoHandedAxeBypassStart;
-                    endPct = settings.TwoHandedAxeBypassEnd;
-                    break;
-
-                case WeaponClass.Mace:
-                case WeaponClass.TwoHandedMace:
-                    enabled = settings.MaceEnabled;
-                    startPct = settings.MaceBypassStart;
-                    endPct = settings.MaceBypassEnd;
-                    break;
-
-                case WeaponClass.Dagger:
-                    enabled = settings.DaggerEnabled;
-                    startPct = settings.DaggerBypassStart;
-                    endPct = settings.DaggerBypassEnd;
-                    break;
-
-                default:
-                    if (debug) DebugMsg($"SKIP: weapon class {weaponClass} not configured");
-                    return false;
-            }
-
-            if (!enabled)
-            {
-                if (debug) DebugMsg($"SKIP: {weaponClass} bypass disabled in settings");
-                return false;
-            }
-
-            float startNorm = startPct * 0.01f;
-            float endNorm = endPct * 0.01f;
-            bool inWindow = attackProgress >= startNorm && attackProgress <= endNorm;
-
-            if (debug && !inWindow)
-            {
-                DebugMsg($"SKIP: progress {attackProgress:F3} outside window [{startNorm:F2}-{endNorm:F2}]");
-            }
-
-            return inWindow;
+            return behind;
         }
 
         private static void DebugMsg(string msg, Color? color = null)

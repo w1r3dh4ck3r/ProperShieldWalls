@@ -18,7 +18,7 @@ namespace ProperShieldWalls
             Order = 0,
             RequireRestart = false,
             HintText = "Master toggle. When enabled, melee attacks pass through friendly agents that are behind the attacker.")]
-        [SettingPropertyGroup("General")]
+        [SettingPropertyGroup("General", GroupOrder = 0)]
         public bool Enabled { get; set; } = true;
 
         [SettingPropertyBool(
@@ -26,7 +26,7 @@ namespace ProperShieldWalls
             Order = 1,
             RequireRestart = false,
             HintText = "If true, only the player's attacks pass through allies behind them. If false, all troops benefit (AI included).")]
-        [SettingPropertyGroup("General")]
+        [SettingPropertyGroup("General", GroupOrder = 0)]
         public bool AffectPlayerOnly { get; set; } = false;
 
         [SettingPropertyFloatingInteger(
@@ -35,7 +35,7 @@ namespace ProperShieldWalls
             Order = 2,
             RequireRestart = false,
             HintText = "Degrees from forward. Friendlies beyond this angle are 'behind' and won't block attacks. 90 = sides+behind. 120 = wider cone. 180 = all friendlies.")]
-        [SettingPropertyGroup("General")]
+        [SettingPropertyGroup("General", GroupOrder = 0)]
         public float BehindAngle { get; set; } = 100f;
 
         // ── Weapon Types / Polearms ──
@@ -234,6 +234,90 @@ namespace ProperShieldWalls
         [SettingPropertyGroup("Weapon Types/Daggers / Knives", GroupOrder = 6)]
         public float DaggerBypassEnd { get; set; } = 50f;
 
+        // ── Weapon Types / Javelins ──
+
+        [SettingPropertyBool(
+            "Enabled",
+            Order = 0,
+            RequireRestart = false,
+            HintText = "Enable friendly bypass for javelins used in melee.")]
+        [SettingPropertyGroup("Weapon Types/Javelins", GroupOrder = 7)]
+        public bool JavelinEnabled { get; set; } = true;
+
+        [SettingPropertyFloatingInteger(
+            "Bypass Start %",
+            0f, 100f, "#0",
+            Order = 1,
+            RequireRestart = false,
+            HintText = "Attack progress % when bypass begins.")]
+        [SettingPropertyGroup("Weapon Types/Javelins", GroupOrder = 7)]
+        public float JavelinBypassStart { get; set; } = 0f;
+
+        [SettingPropertyFloatingInteger(
+            "Bypass End %",
+            0f, 100f, "#0",
+            Order = 2,
+            RequireRestart = false,
+            HintText = "Attack progress % when bypass ends.")]
+        [SettingPropertyGroup("Weapon Types/Javelins", GroupOrder = 7)]
+        public float JavelinBypassEnd { get; set; } = 50f;
+
+        // ── Weapon Types / Throwing Axes ──
+
+        [SettingPropertyBool(
+            "Enabled",
+            Order = 0,
+            RequireRestart = false,
+            HintText = "Enable friendly bypass for throwing axes used in melee.")]
+        [SettingPropertyGroup("Weapon Types/Throwing Axes", GroupOrder = 8)]
+        public bool ThrowingAxeEnabled { get; set; } = true;
+
+        [SettingPropertyFloatingInteger(
+            "Bypass Start %",
+            0f, 100f, "#0",
+            Order = 1,
+            RequireRestart = false,
+            HintText = "Attack progress % when bypass begins.")]
+        [SettingPropertyGroup("Weapon Types/Throwing Axes", GroupOrder = 8)]
+        public float ThrowingAxeBypassStart { get; set; } = 0f;
+
+        [SettingPropertyFloatingInteger(
+            "Bypass End %",
+            0f, 100f, "#0",
+            Order = 2,
+            RequireRestart = false,
+            HintText = "Attack progress % when bypass ends.")]
+        [SettingPropertyGroup("Weapon Types/Throwing Axes", GroupOrder = 8)]
+        public float ThrowingAxeBypassEnd { get; set; } = 50f;
+
+        // ── Weapon Types / Throwing Knives ──
+
+        [SettingPropertyBool(
+            "Enabled",
+            Order = 0,
+            RequireRestart = false,
+            HintText = "Enable friendly bypass for throwing knives used in melee.")]
+        [SettingPropertyGroup("Weapon Types/Throwing Knives", GroupOrder = 9)]
+        public bool ThrowingKnifeEnabled { get; set; } = true;
+
+        [SettingPropertyFloatingInteger(
+            "Bypass Start %",
+            0f, 100f, "#0",
+            Order = 1,
+            RequireRestart = false,
+            HintText = "Attack progress % when bypass begins.")]
+        [SettingPropertyGroup("Weapon Types/Throwing Knives", GroupOrder = 9)]
+        public float ThrowingKnifeBypassStart { get; set; } = 0f;
+
+        [SettingPropertyFloatingInteger(
+            "Bypass End %",
+            0f, 100f, "#0",
+            Order = 2,
+            RequireRestart = false,
+            HintText = "Attack progress % when bypass ends.")]
+        [SettingPropertyGroup("Weapon Types/Throwing Knives", GroupOrder = 9)]
+        public float ThrowingKnifeBypassEnd { get; set; } = 50f;
+
         // ── Debug ──
 
         [SettingPropertyBool(
@@ -241,7 +325,7 @@ namespace ProperShieldWalls
             Order = 0,
             RequireRestart = false,
             HintText = "Show in-game messages when a friendly hit is bypassed.")]
-        [SettingPropertyGroup("Debug")]
+        [SettingPropertyGroup("Debug", GroupOrder = 99)]
         public bool EnableDebug { get; set; } = false;
     }
 }

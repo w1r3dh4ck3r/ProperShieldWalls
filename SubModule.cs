@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using HarmonyLib;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
@@ -13,16 +14,30 @@ namespace ProperShieldWalls
         {
             base.OnSubModuleLoad();
 
-            try
+            _harmony = new Harmony("com.propershieldwalls.patch");
+            int applied = 0;
+            int failed = 0;
+
+            // Patch each type individually so one failure doesn't block others
+            foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
             {
-                _harmony = new Harmony("com.propershieldwalls.patch");
-                _harmony.PatchAll();
-                Log("Proper Shield Walls v1.0.0 loaded.");
+                if (type.GetCustomAttribute<HarmonyPatch>() == null)
+                    continue;
+
+                try
+                {
+                    _harmony.CreateClassProcessor(type).Patch();
+                    applied++;
+                    Log($"[PSW] Patched: {type.Name}");
+                }
+                catch (Exception ex)
+                {
+                    failed++;
+                    Log($"[PSW] FAILED to patch {type.Name}: {ex.Message}");
+                }
             }
-            catch (Exception ex)
-            {
-                Log($"ERROR loading patches: {ex.Message}\n{ex.StackTrace}");
-            }
+
+            Log($"[PSW] Proper Shield Walls v1.1.0 loaded. Patches: {applied} OK, {failed} failed.");
         }
 
         protected override void OnBeforeInitialModuleScreenSetAsRoot()
@@ -30,10 +45,16 @@ namespace ProperShieldWalls
             base.OnBeforeInitialModuleScreenSetAsRoot();
             InformationManager.DisplayMessage(
                 new InformationMessage(
-                    "[PSW] Proper Shield Walls active — polearm thrusts pass through allies",
+                    "[PSW] Proper Shield Walls active — melee weapons pass through allies",
                     Colors.Green
                 )
             );
+        }
+
+        public override void OnMissionBehaviorInitialize(Mission mission)
+        {
+            base.OnMissionBehaviorInitialize(mission);
+            mission.AddMissionBehavior(new ShieldWallBehaviour());
         }
 
         protected override void OnSubModuleUnloaded()
@@ -44,7 +65,7 @@ namespace ProperShieldWalls
 
         internal static void Log(string message)
         {
-            // Only log at startup, not during combat — Debug.Print spams conhost
+            Debug.Print(message);
         }
     }
 }
