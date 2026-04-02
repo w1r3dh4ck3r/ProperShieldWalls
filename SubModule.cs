@@ -44,8 +44,7 @@ namespace ProperShieldWalls
 
         internal static void Log(string message)
         {
-            TaleWorlds.Library.Debug.Print($"[ProperShieldWalls] {message}", 0,
-                TaleWorlds.Library.Debug.DebugColor.Yellow);
+            // Only log at startup, not during combat — Debug.Print spams conhost
         }
     }
 }

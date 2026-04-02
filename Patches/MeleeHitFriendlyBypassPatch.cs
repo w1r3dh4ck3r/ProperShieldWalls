@@ -35,13 +35,7 @@ namespace ProperShieldWalls.Patches
                 var settings = GlobalSettings<Settings>.Instance;
                 bool debug = settings != null && settings.EnableDebug;
 
-                // Log ALL melee hits when debug is on — this tells us if the patch fires at all
-                if (debug)
-                {
-                    bool sameTeam = attacker.Team == victim.Team;
-                    DebugMsg($"HIT: {(sameTeam ? "FRIENDLY" : "enemy")} | " +
-                             $"colReaction={colReaction} | progress={collisionData.AttackProgress:F3}");
-                }
+                // Skip enemy hits immediately — no logging for non-friendly hits
 
                 if (attacker.Team != victim.Team)
                     return true;
