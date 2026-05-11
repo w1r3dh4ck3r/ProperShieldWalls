@@ -1,0 +1,55 @@
+<Project>
+  <!--
+    Imported AFTER the project file, so <Reference Update> correctly finds the items
+    already defined in the csproj and patches their HintPaths for Linux.
+    The props file handles FrameworkPathOverride and GameFolder; this file handles
+    SDK-style reference resolution where $(ReferencePath) is insufficient.
+  -->
+  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+    <Reference Update="TaleWorlds.Core">
+      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.Core.dll</HintPath>
+    </Reference>
+    <Reference Update="TaleWorlds.MountAndBlade">
+      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.MountAndBlade.dll</HintPath>
+    </Reference>
+    <Reference Update="TaleWorlds.CampaignSystem">
+      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.CampaignSystem.dll</HintPath>
+    </Reference>
+    <Reference Update="TaleWorlds.CampaignSystem.ViewModelCollection">
+      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.CampaignSystem.ViewModelCollection.dll</HintPath>
+    </Reference>
+    <Reference Update="TaleWorlds.Library">
+      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.Library.dll</HintPath>
+    </Reference>
+    <Reference Update="TaleWorlds.Localization">
+      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.Localization.dll</HintPath>
+    </Reference>
+    <Reference Update="TaleWorlds.SaveSystem">
+      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.SaveSystem.dll</HintPath>
+    </Reference>
+    <Reference Update="TaleWorlds.ObjectSystem">
+      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.ObjectSystem.dll</HintPath>
+    </Reference>
+    <Reference Update="TaleWorlds.DotNet">
+      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.DotNet.dll</HintPath>
+    </Reference>
+    <Reference Update="TaleWorlds.Engine">
+      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.Engine.dll</HintPath>
+    </Reference>
+    <Reference Update="TaleWorlds.InputSystem">
+      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.InputSystem.dll</HintPath>
+    </Reference>
+    <Reference Update="TaleWorlds.MountAndBlade.View">
+      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.MountAndBlade.View.dll</HintPath>
+    </Reference>
+    <Reference Update="SandBox">
+      <HintPath>$(GameFolder)/Modules/SandBox/bin/Win64_Shipping_Client/SandBox.dll</HintPath>
+    </Reference>
+    <Reference Update="0Harmony">
+      <HintPath>$(GameFolder)/Modules/Bannerlord.Harmony/bin/Win64_Shipping_Client/0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Update="MCMv5">
+      <HintPath>$(GameFolder)/Modules/Bannerlord.MBOptionScreen/bin/Win64_Shipping_Client/MCMv5.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>
