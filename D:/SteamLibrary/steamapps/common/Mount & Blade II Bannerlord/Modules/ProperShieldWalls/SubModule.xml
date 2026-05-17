@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Module>
+    <Name value="Proper Shield Walls"/>
+    <Id value="ProperShieldWalls"/>
+    <Version value="v1.1.0"/>
+    <SingleplayerModule value="true"/>
+    <MultiplayerModule value="false"/>
+    <Official value="false"/>
+
+    <DependedModules>
+        <DependedModule Id="Bannerlord.Harmony"/>
+        <DependedModule Id="Bannerlord.ButterLib"/>
+        <DependedModule Id="Bannerlord.UIExtenderEx"/>
+        <DependedModule Id="Bannerlord.MBOptionScreen"/>
+        <DependedModule Id="Native"/>
+        <DependedModule Id="SandBoxCore"/>
+        <DependedModule Id="Sandbox"/>
+        <DependedModule Id="StoryMode" Optional="true"/>
+    </DependedModules>
+
+    <SubModules>
+        <SubModule>
+            <Name value="ProperShieldWalls"/>
+            <DLLName value="ProperShieldWalls.dll"/>
+            <SubModuleClassType value="ProperShieldWalls.SubModule"/>
+            <Tags>
+                <Tag key="DedicatedServerType" value="none"/>
+                <Tag key="IsNoRenderModeElement" value="false"/>
+            </Tags>
+        </SubModule>
+    </SubModules>
+</Module>
