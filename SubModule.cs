@@ -55,6 +55,7 @@ namespace ProperShieldWalls
         {
             base.OnMissionBehaviorInitialize(mission);
             mission.AddMissionBehavior(new ShieldWallBehaviour());
+            mission.AddMissionBehavior(new OthismosTestBehaviour());
         }
 
         protected override void OnSubModuleUnloaded()
