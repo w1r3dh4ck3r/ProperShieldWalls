@@ -12,7 +12,8 @@
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <!-- IMPORTANT: Change this to your Bannerlord installation path -->
-    <GameFolder>D:\SteamLibrary\steamapps\common\Mount &amp; Blade II Bannerlord</GameFolder>
+    <!-- Condition: Directory.Build.props sets GameFolder on Linux; don't override it -->
+    <GameFolder Condition="'$(GameFolder)' == ''">D:\SteamLibrary\steamapps\common\Mount &amp; Blade II Bannerlord</GameFolder>
     <ModuleName>ProperShieldWalls</ModuleName>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -110,6 +111,8 @@
     <Compile Include="Patches\RegisterBlowPatch.cs" />
     <Compile Include="Patches\ShieldDamagePatch.cs" />
     <Compile Include="Patches\FriendlyFireCheckPatch.cs" />
+    <Compile Include="Patches\SlotLockPatch.cs" />
+    <Compile Include="OthismosTestBehaviour.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

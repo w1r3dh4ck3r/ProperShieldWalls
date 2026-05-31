@@ -5,6 +5,12 @@
     The props file handles FrameworkPathOverride and GameFolder; this file handles
     SDK-style reference resolution where $(ReferencePath) is insufficient.
   -->
+  <!-- Override OutputPath and ModuleDir on Linux to use forward slashes -->
+  <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+    <OutputPath>$(GameFolder)/Modules/$(ModuleName)/bin/Win64_Shipping_Client/</OutputPath>
+    <ModuleDir>$(GameFolder)/Modules/$(ModuleName)</ModuleDir>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
     <Reference Update="TaleWorlds.Core">
       <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.Core.dll</HintPath>
