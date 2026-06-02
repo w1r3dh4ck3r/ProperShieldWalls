@@ -4,15 +4,8 @@ using TaleWorlds.MountAndBlade;
 
 namespace ProperShieldWalls.Patches
 {
-    /// <summary>
-    /// Safety net: skip blow registration entirely for friendly shield hits
-    /// that our main patch identified as a bypass. Prevents any residual
-    /// damage from being applied to the friendly agent or their shield.
-    ///
-    /// In the normal flow, DecideCollisionReactionPatch changes Bounced to
-    /// ContinueChecking, which should prevent RegisterBlow from being called.
-    /// This prefix is a defensive fallback for edge cases.
-    /// </summary>
+    // Safety net: skip blow registration for friendly hits during othismos pass-throughs
+    // so no residual damage reaches the allied agent.
     [HarmonyPatch(typeof(Mission), "RegisterBlow")]
     internal static class RegisterBlowPatch
     {
@@ -21,20 +14,15 @@ namespace ProperShieldWalls.Patches
         {
             try
             {
-                if (!MeleeHitFriendlyBypassPatch.ShouldBypassFriendlyHit)
-                    return true;
-
-                // Double-check it's actually a friendly hit
+                if (!MeleeHitCallbackPatch.Active) return true;
                 if (attacker != null && victim != null && attacker.Team == victim.Team)
-                    return false; // skip blow registration
-
-                return true;
+                    return false;
             }
             catch (Exception ex)
             {
-                SubModule.Log($"RegisterBlow prefix error: {ex.Message}");
-                return true;
+                SubModule.Log($"[PSW] RegisterBlow error: {ex.Message}");
             }
+            return true;
         }
     }
 }

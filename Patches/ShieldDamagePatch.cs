@@ -4,10 +4,8 @@ using SandBox.GameComponents;
 
 namespace ProperShieldWalls.Patches
 {
-    /// <summary>
-    /// Safety net: prevent friendly shields from losing HP when our bypass is active.
-    /// Returns 0 shield damage so the ally's shield stays intact.
-    /// </summary>
+    // Safety net: zero out shield damage for friendly hits during othismos pass-throughs
+    // so allied shields don't lose HP from formation-mates stabbing through them.
     [HarmonyPatch(typeof(SandboxAgentApplyDamageModel), "CalculateShieldDamage")]
     internal static class ShieldDamagePatch
     {
@@ -16,17 +14,16 @@ namespace ProperShieldWalls.Patches
         {
             try
             {
-                if (MeleeHitFriendlyBypassPatch.ShouldBypassFriendlyHit)
+                if (MeleeHitCallbackPatch.Active)
                 {
                     __result = 0f;
-                    return false; // skip original
+                    return false;
                 }
             }
             catch (Exception ex)
             {
-                SubModule.Log($"ShieldDamage prefix error: {ex.Message}");
+                SubModule.Log($"[PSW] ShieldDamage error: {ex.Message}");
             }
-
             return true;
         }
     }

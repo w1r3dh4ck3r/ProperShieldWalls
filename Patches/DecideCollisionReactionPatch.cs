@@ -4,13 +4,8 @@ using TaleWorlds.MountAndBlade;
 
 namespace ProperShieldWalls.Patches
 {
-    /// <summary>
-    /// Postfix on MissionCombatMechanicsHelper.DecideWeaponCollisionReaction.
-    ///
-    /// The method is void and outputs via ref colReaction parameter (not a return value).
-    /// When AttackBlockedWithShield is true, it sets colReaction = Bounced.
-    /// We override that to ContinueChecking for friendly hits.
-    /// </summary>
+    // Safety net: if DecideWeaponCollisionReaction overrides our ContinueChecking back to
+    // Bounced, restore it. Fires only after MeleeHitCallbackPatch has already set Active.
     [HarmonyPatch(typeof(MissionCombatMechanicsHelper), "DecideWeaponCollisionReaction")]
     internal static class DecideCollisionReactionPatch
     {
@@ -19,15 +14,13 @@ namespace ProperShieldWalls.Patches
         {
             try
             {
-                if (!MeleeHitFriendlyBypassPatch.ShouldBypassFriendlyHit)
-                    return;
-
+                if (!MeleeHitCallbackPatch.Active) return;
                 if (colReaction == MeleeCollisionReaction.Bounced)
                     colReaction = MeleeCollisionReaction.ContinueChecking;
             }
             catch (Exception ex)
             {
-                SubModule.Log($"DecideCollisionReaction postfix error: {ex.Message}");
+                SubModule.Log($"[PSW] DecideCollisionReaction error: {ex.Message}");
             }
         }
     }

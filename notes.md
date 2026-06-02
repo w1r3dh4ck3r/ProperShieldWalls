@@ -2,6 +2,71 @@
 
 ---
 
+## 2026-06-01 — POC passed, MVP implemented
+
+**What changed:**
+
+- POC test run confirmed: Nord Spear Warrior held at 0.65 m for ~50 s, broke only on formation rout. Gate passed.
+- Deleted all old friendly-fire-bypass code: `OthismosTestBehaviour.cs`, `Patches/SlotLockPatch.cs` (POC), `Patches/MeleeHitFriendlyBypassPatch.cs`, `WeaponBypassConfig.cs`, `ShieldWallBehaviour.cs`
+- Built full MVP architecture:
+
+```
+OthismosState.cs               ← central lock registry + per-agent slot positions
+Models/EngagementPair.cs       ← pair state machine data (Idle/PreLock/Locked/Breaking)
+Models/AgentSlot.cs            ← per-agent rank tracking (pressure formula)
+Behaviours/OthismosBehaviour.cs ← mission orchestrator
+Behaviours/EngagementDetector.cs ← ShieldWall proximity + facing detection
+Behaviours/LockStateManager.cs  ← state transitions, 1 s debounce, stamina drain
+Behaviours/SlotEnforcer.cs      ← slot registration/unregistration on lock/break
+Behaviours/StabForcer.cs        ← EnforceShieldUsage(DefendDown) for front rank
+Behaviours/PressureResolver.cs  ← per-tick slot nudge based on rank pressure delta
+Patches/SlotLockPatch.cs        ← GetOrderPositionOfUnit prefix (primary slot lock)
+Patches/AgentAIPatch.cs         ← HumanAIComponent.ParallelUpdateFormationMovement postfix
+Patches/MeleeHitCallbackPatch.cs ← friendly pass-through flag + shield-flag clearing
+Patches/FriendlyFireCheckPatch.cs ← bypasses CanWeaponIgnoreFriendlyFireChecks
+Patches/DecideCollisionReactionPatch.cs ← prevents Bounced override
+Patches/RegisterBlowPatch.cs    ← skips blow registration for friendly pass-throughs
+Patches/ShieldDamagePatch.cs    ← zeroes shield damage for friendly pass-throughs
+Settings.cs                     ← new MCM settings (EngagementDistance, MinAgentsPerSide, StaminaDrainRate, EnableDebug)
+```
+
+**API verification (all confirmed via DLL strings extraction on installed game):**
+
+- `Formation.GetOrderPositionOfUnit` ✓ (also confirmed by POC)
+- `WorldPosition.SetVec2` ✓
+- `Agent.SetTargetPosition` ✓
+- `HumanAIComponent.ParallelUpdateFormationMovement` ✓
+- `HumanAIComponent.SetShouldCatchUpWithFormation` ✓ (direct method, not property)
+- `Agent.EnforceShieldUsage` ✓
+- `Agent.HasShieldCached` ✓
+- `Formation.CountOfUnitsWithoutDetachedOnes` ✓
+- `Formation.CurrentDirection` ✓
+- `AttackCollisionData._attackBlockedWithShield` / `_collidedWithShieldOnBack` ✓
+- `ArrangementOrderEnum.ShieldWall` ✓ (from RBM source, confirmed in ARCHITECTURE)
+
+**One unresolved item:**
+
+- `AgentAIPatch._agentProp` accesses `HumanAIComponent.Agent` via reflection. The exact property name on `HumanAIComponent` (or its base class) is not confirmed — the patch logs "MISSING" at startup if not found. If it shows MISSING in the first test run log, the patch silently does nothing (secondary enforcement only; primary slot lock still works).
+
+**Next steps:**
+
+1. Build: `/mnt/c/Program\ Files/dotnet/dotnet.exe build -c Release`
+2. Run Custom Battle: 10v10, both sides in ShieldWall order, infantry only
+3. Watch `rgl_log_XXXXX.txt` for:
+   - `[PSW] Locked: formation X vs Y` — engagement triggered
+   - `[PSW] Breaking (stamina exhausted)` — clean exit
+   - Any `FAILED to patch` lines — compile/reflection issues
+4. Gate: no crash, both walls lock on contact, break on stamina exhaustion
+
+**Settings defaults (in MCM "Proper Shield Walls"):**
+
+- Engagement Distance: 5 m
+- Min Agents Per Side: 3
+- Stamina Drain Rate: 5/s (engagement lasts ~20 s at equal strength)
+- Enable Debug: false (set true to see state transitions in-game)
+
+---
+
 ## 2026-05-27 — Research phase complete + day-one POC committed
 
 **What changed:**
@@ -13,21 +78,4 @@
 **Key decisions:**
 - Spatial constraint approach: return `unit.GetWorldPosition()` from `GetOrderPositionOfUnit` prefix — no animation forcing needed
 - MVP stamina: own `Dictionary<Formation, float>`, not StaminaSystem (no public API)
-- Old PSW friendly-fire bypass code kept intact; new othismos system added alongside it
-
-**Build environment note:**
-- Development has been on the Linux server (no D: drive DLLs accessible, no ILSpy)
-- All research done; next step is BUILD + RUN on PC where game DLLs, ILSpy, and the game itself are available
-- The D: symlink in the project root only has `Modules/` — game binaries are not accessible from the server
-
-**Next steps on PC:**
-1. `git pull` to get the POC commit
-2. Run ILSpy BEFORE building: `ilspycmd.exe TaleWorlds.MountAndBlade.dll -t HumanAIComponent | findstr "ParallelUpdateFormationMovement ShouldCatchUpWithFormation"`
-3. Build: `dotnet build` or open in VS on Windows
-4. Watch `rgl_log.txt` for `[PSW TEST]` lines — expect `dist < 1.5m` and HP changing on enemy
-5. If `SetTargetPosition` fails to compile: remove that one line in `SlotLockPatch.cs` (the `__result = unit.GetWorldPosition()` line is what matters)
-6. If POC passes (dist stable, HP dropping, no crash at 60s): delete `OthismosTestBehaviour.cs` and `Patches/SlotLockPatch.cs`, begin full MVP
-
-**Open risk:**
-- `unit.SetTargetPosition(unit.GetWorldPosition().AsVec2)` in SlotLockPatch.cs — method may be internal; remove if compile fails
-- `HumanAIComponent.ParallelUpdateFormationMovement` / `ShouldCatchUpWithFormation` — verify names match installed version via ILSpy before adding the slot enforcement postfix
+- Old PSW friendly-fire bypass code kept at the time; fully removed in 2026-06-01 session

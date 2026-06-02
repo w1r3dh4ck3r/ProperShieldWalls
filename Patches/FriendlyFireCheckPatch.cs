@@ -1,17 +1,14 @@
 using System;
 using HarmonyLib;
-using MCM.Abstractions.Base.Global;
 using SandBox.GameComponents;
 using TaleWorlds.Core;
 using TaleWorlds.MountAndBlade;
 
 namespace ProperShieldWalls.Patches
 {
-    /// <summary>
-    /// Tells the damage model that melee weapons can ignore friendly fire checks.
-    /// Without this, the native engine blocks friendly melee collisions BEFORE
-    /// MeleeHitCallback is ever called — our main patch would never fire.
-    /// </summary>
+    // Allows the engine to route a weapon hit into MeleeHitCallback when an othismos
+    // engagement is active. Without this, native code blocks friendly collisions before
+    // MeleeHitCallbackPatch ever fires.
     [HarmonyPatch(typeof(SandboxAgentApplyDamageModel), "CanWeaponIgnoreFriendlyFireChecks")]
     internal static class FriendlyFireCheckPatch
     {
@@ -20,14 +17,7 @@ namespace ProperShieldWalls.Patches
         {
             try
             {
-                if (weapon == null)
-                    return true;
-
-                var settings = GlobalSettings<Settings>.Instance;
-                if (settings == null || !settings.Enabled)
-                    return true;
-
-                if (WeaponBypassConfig.IsWeaponEnabled(weapon.WeaponClass, settings))
+                if (weapon != null && OthismosState.HasActiveEngagement)
                 {
                     __result = true;
                     return false;
@@ -37,7 +27,6 @@ namespace ProperShieldWalls.Patches
             {
                 SubModule.Log($"[PSW] FriendlyFireCheck error: {ex.Message}");
             }
-
             return true;
         }
     }

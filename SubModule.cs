@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using HarmonyLib;
+using ProperShieldWalls.Behaviours;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 
@@ -15,15 +16,11 @@ namespace ProperShieldWalls
             base.OnSubModuleLoad();
 
             _harmony = new Harmony("com.propershieldwalls.patch");
-            int applied = 0;
-            int failed = 0;
+            int applied = 0, failed = 0;
 
-            // Patch each type individually so one failure doesn't block others
             foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
             {
-                if (type.GetCustomAttribute<HarmonyPatch>() == null)
-                    continue;
-
+                if (type.GetCustomAttribute<HarmonyPatch>() == null) continue;
                 try
                 {
                     _harmony.CreateClassProcessor(type).Patch();
@@ -37,25 +34,20 @@ namespace ProperShieldWalls
                 }
             }
 
-            Log($"[PSW] Proper Shield Walls v1.1.0 loaded. Patches: {applied} OK, {failed} failed.");
+            Log($"[PSW] Proper Shield Walls v2.0.0 loaded. Patches: {applied} OK, {failed} failed.");
         }
 
         protected override void OnBeforeInitialModuleScreenSetAsRoot()
         {
             base.OnBeforeInitialModuleScreenSetAsRoot();
             InformationManager.DisplayMessage(
-                new InformationMessage(
-                    "[PSW] Proper Shield Walls active — melee weapons pass through allies",
-                    Colors.Green
-                )
-            );
+                new InformationMessage("[PSW] Proper Shield Walls active — shield wall othismos enabled", Colors.Green));
         }
 
         public override void OnMissionBehaviorInitialize(Mission mission)
         {
             base.OnMissionBehaviorInitialize(mission);
-            mission.AddMissionBehavior(new ShieldWallBehaviour());
-            mission.AddMissionBehavior(new OthismosTestBehaviour());
+            mission.AddMissionBehavior(new OthismosBehaviour());
         }
 
         protected override void OnSubModuleUnloaded()

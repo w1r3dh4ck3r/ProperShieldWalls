@@ -6,7 +6,7 @@ A Bannerlord combat mod implementing historical shield wall contact mechanics (o
 
 ## Current Status
 
-**Research phase.** No MVP code written yet. Core unknown (agent AI decision intercept for stab-in-slot) is being researched. Gate item: single-agent stab-in-slot proof-of-concept must succeed before MVP begins.
+**MVP code complete.** POC gate passed (2026-06-01). Full MVP implemented and committed. Gate item: run 10v10 Custom Battle — no crash, both shield walls lock on contact and disengage on stamina exhaustion.
 
 Key deliverables in `docs/`:
 - `01-KNOWLEDGE-BASE-SUMMARY.md` — what we know from local codebase
