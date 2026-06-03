@@ -104,6 +104,7 @@
   <ItemGroup>
     <!-- Entry point -->
     <Compile Include="SubModule.cs" />
+    <Compile Include="StaminaReader.cs" />
     <Compile Include="Settings.cs" />
     <Compile Include="OthismosState.cs" />
     <!-- Models -->

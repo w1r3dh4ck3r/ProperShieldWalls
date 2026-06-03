@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ProperShieldWalls.Models;
+using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 
 namespace ProperShieldWalls.Behaviours
@@ -9,6 +10,10 @@ namespace ProperShieldWalls.Behaviours
         private readonly List<EngagementPair> _pairs = new List<EngagementPair>();
         private readonly Settings _settings;
         private readonly SlotEnforcer _slotEnforcer;
+
+        // Cached once per mission; null if StaminaSystem not loaded.
+        private MissionBehavior _staminaBehavior;
+        private bool _staminaBehaviorSearched;
 
         internal IReadOnlyList<EngagementPair> Pairs => _pairs;
 
@@ -33,7 +38,7 @@ namespace ProperShieldWalls.Behaviours
                         TickPreLock(pair, candidates, dt);
                         break;
                     case EngagementState.Locked:
-                        TickLocked(pair, dt, i);
+                        TickLocked(pair, i);
                         break;
                     case EngagementState.Breaking:
                         TickBreaking(pair, dt, i);
@@ -67,29 +72,105 @@ namespace ProperShieldWalls.Behaviours
             }
 
             pair.StateTimer += dt;
-            if (pair.StateTimer >= 1.0f)  // 1 s debounce
+            if (pair.StateTimer >= 1.0f)  // 1 s debounce before locking
             {
                 pair.State = EngagementState.Locked;
                 pair.StateTimer = 0f;
-                pair.StaminaA = 100f;
-                pair.StaminaB = 100f;
+                pair.InitialFrontRankA = CountFrontRank(pair.FormationA);
+                pair.InitialFrontRankB = CountFrontRank(pair.FormationB);
                 OthismosState.Lock(pair.FormationA);
                 OthismosState.Lock(pair.FormationB);
                 _slotEnforcer.OnLocked(pair);
-                SubModule.Log($"[PSW] Locked: formation {pair.FormationA.Index} vs {pair.FormationB.Index}");
+                SubModule.Log($"[PSW] Locked: formation {pair.FormationA.Index} vs {pair.FormationB.Index} " +
+                              $"(frontRank {pair.InitialFrontRankA} vs {pair.InitialFrontRankB}, " +
+                              $"staminaMod={(StaminaReader.IsAvailable ? "on" : "off")})");
             }
         }
 
-        private void TickLocked(EngagementPair pair, float dt, int index)
+        private void TickLocked(EngagementPair pair, int index)
         {
-            pair.StaminaA -= _settings.StaminaDrainRate * dt;
-            pair.StaminaB -= _settings.StaminaDrainRate * dt;
+            // --- Stamina exhaustion (StaminaSystem mod) ---
+            if (StaminaReader.IsAvailable)
+            {
+                var inst = GetStaminaBehavior();
+                float staminaA = AverageFrontRankStamina(pair.FormationA, inst);
+                float staminaB = AverageFrontRankStamina(pair.FormationB, inst);
+                if (staminaA < _settings.StaminaBreakThreshold || staminaB < _settings.StaminaBreakThreshold)
+                {
+                    BeginBreaking(pair, $"stamina exhausted (A={staminaA:F2} B={staminaB:F2})");
+                    return;
+                }
+            }
 
+            // --- Absolute count floor ---
             bool tooFew = pair.FormationA.CountOfUnitsWithoutDetachedOnes < _settings.MinAgentsPerSide
                        || pair.FormationB.CountOfUnitsWithoutDetachedOnes < _settings.MinAgentsPerSide;
+            if (tooFew) { BeginBreaking(pair, "too few agents"); return; }
 
-            if (pair.StaminaExhausted || tooFew)
-                BeginBreaking(pair, pair.StaminaExhausted ? "stamina exhausted" : "too few agents");
+            // --- Front-rank coverage: gaps too wide to maintain shields ---
+            bool coverageLost = (pair.InitialFrontRankA > 0 && CountFrontRank(pair.FormationA) < pair.InitialFrontRankA * 0.5f)
+                             || (pair.InitialFrontRankB > 0 && CountFrontRank(pair.FormationB) < pair.InitialFrontRankB * 0.5f);
+            if (coverageLost) { BeginBreaking(pair, "coverage lost"); return; }
+
+            // --- Macro-disengage: formations have drifted apart (pulse ended, not a break) ---
+            float dist = FormationDistance(pair.FormationA, pair.FormationB);
+            if (dist > _settings.EngagementDistance * 1.5f)
+            {
+                BeginBreaking(pair, $"macro-disengage (dist={dist:F1}m)");
+            }
+        }
+
+        private MissionBehavior GetStaminaBehavior()
+        {
+            if (!_staminaBehaviorSearched)
+            {
+                _staminaBehavior = StaminaReader.FindInstance();
+                _staminaBehaviorSearched = true;
+            }
+            return _staminaBehavior;
+        }
+
+        // Average 0–1 stamina ratio across active front-rank agents. Returns 1.0 if no front-rank agents found.
+        private static float AverageFrontRankStamina(Formation f, MissionBehavior inst)
+        {
+            float total = 0f;
+            int count = 0;
+            foreach (var unit in f.Arrangement.GetAllUnits())
+            {
+                if (!(unit is Agent a) || !a.IsActive()) continue;
+                if (((IFormationUnit)a).FormationRankIndex != 0) continue;
+                total += StaminaReader.GetStaminaRatio(a, inst);
+                count++;
+            }
+            return count > 0 ? total / count : 1f;
+        }
+
+        private static int CountFrontRank(Formation f)
+        {
+            int count = 0;
+            foreach (var unit in f.Arrangement.GetAllUnits())
+                if (unit is Agent a && a.IsActive() && ((IFormationUnit)a).FormationRankIndex == 0)
+                    count++;
+            return count;
+        }
+
+        private static float FormationDistance(Formation a, Formation b)
+        {
+            Vec2 ca = GetCenter(a);
+            Vec2 cb = GetCenter(b);
+            float dx = ca.x - cb.x, dy = ca.y - cb.y;
+            return MathF.Sqrt(dx * dx + dy * dy);
+        }
+
+        private static Vec2 GetCenter(Formation f)
+        {
+            float x = 0f, y = 0f; int n = 0;
+            foreach (var unit in f.Arrangement.GetAllUnits())
+            {
+                if (unit is Agent a && a.IsActive())
+                { x += a.Position.x; y += a.Position.y; n++; }
+            }
+            return n > 0 ? new Vec2(x / n, y / n) : Vec2.Zero;
         }
 
         private void TickBreaking(EngagementPair pair, float dt, int index)
@@ -108,11 +189,9 @@ namespace ProperShieldWalls.Behaviours
         private static bool StillCandidate(EngagementPair pair, List<(Formation, Formation)> candidates)
         {
             foreach (var (a, b) in candidates)
-            {
                 if ((a == pair.FormationA && b == pair.FormationB) ||
                     (a == pair.FormationB && b == pair.FormationA))
                     return true;
-            }
             return false;
         }
 

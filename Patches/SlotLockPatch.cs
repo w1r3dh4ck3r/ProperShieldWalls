@@ -1,5 +1,6 @@
 using HarmonyLib;
 using TaleWorlds.Engine;
+using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 
 namespace ProperShieldWalls.Patches

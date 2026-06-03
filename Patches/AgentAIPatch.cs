@@ -7,23 +7,22 @@ namespace ProperShieldWalls.Patches
 {
     // Secondary slot enforcement: sets ShouldCatchUpWithFormation=true so the agent's AI
     // treats its slot as unreached, preventing free-roam movement.
-    // All API names verified against installed DLL via strings extraction.
+    // Agent is a protected field on AgentComponent; ShouldCatchUpWithFormation is a non-public property.
     [HarmonyPatch(typeof(HumanAIComponent), "ParallelUpdateFormationMovement")]
     internal static class AgentAIPatch
     {
-        private static readonly MethodInfo _setShouldCatchUp;
-        private static readonly PropertyInfo _agentProp;
+        private static readonly FieldInfo    _agentField;
+        private static readonly PropertyInfo _catchUpProp;
 
         static AgentAIPatch()
         {
             var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-            _setShouldCatchUp = typeof(HumanAIComponent).GetMethod("SetShouldCatchUpWithFormation", flags);
-            _agentProp = typeof(HumanAIComponent).GetProperty("Agent", flags)
-                      ?? typeof(HumanAIComponent).BaseType?.GetProperty("Agent", flags);
+            _agentField  = typeof(HumanAIComponent).BaseType?.GetField("Agent", flags);
+            _catchUpProp = typeof(HumanAIComponent).GetProperty("ShouldCatchUpWithFormation", flags);
             SubModule.Log(
                 $"[PSW] AgentAIPatch init: " +
-                $"catchUp={_setShouldCatchUp?.Name ?? "MISSING"} " +
-                $"agentProp={_agentProp?.Name ?? "MISSING"}");
+                $"agentField={_agentField?.Name ?? "MISSING"} " +
+                $"catchUp={_catchUpProp?.Name ?? "MISSING"}");
         }
 
         [HarmonyPostfix]
@@ -31,11 +30,11 @@ namespace ProperShieldWalls.Patches
         {
             try
             {
-                if (_setShouldCatchUp == null || _agentProp == null) return;
-                var agent = _agentProp.GetValue(__instance) as Agent;
+                if (_agentField == null || _catchUpProp == null) return;
+                var agent = _agentField.GetValue(__instance) as Agent;
                 if (agent == null || !agent.IsActive() || agent.Formation == null) return;
                 if (!OthismosState.IsLocked(agent.Formation)) return;
-                _setShouldCatchUp.Invoke(__instance, new object[] { true });
+                _catchUpProp.SetValue(__instance, true);
             }
             catch (Exception ex)
             {

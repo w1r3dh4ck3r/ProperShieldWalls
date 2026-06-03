@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using HarmonyLib;
+using MCM.Abstractions.Base.Global;
 using ProperShieldWalls.Behaviours;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
@@ -59,6 +60,8 @@ namespace ProperShieldWalls
         internal static void Log(string message)
         {
             Debug.Print(message);
+            if (GlobalSettings<Settings>.Instance?.EnableDebug == true)
+                InformationManager.DisplayMessage(new InformationMessage(message, Colors.Cyan));
         }
     }
 }

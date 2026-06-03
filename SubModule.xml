@@ -16,6 +16,7 @@
         <DependedModule Id="SandBoxCore"/>
         <DependedModule Id="Sandbox"/>
         <DependedModule Id="StoryMode" Optional="true"/>
+        <DependedModule Id="StaminaSystem" Optional="true"/>
     </DependedModules>
 
     <SubModules>

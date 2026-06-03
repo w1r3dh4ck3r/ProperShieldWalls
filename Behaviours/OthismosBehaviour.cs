@@ -1,4 +1,5 @@
 using MCM.Abstractions.Base.Global;
+using TaleWorlds.Core;
 using TaleWorlds.MountAndBlade;
 
 namespace ProperShieldWalls.Behaviours

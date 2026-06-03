@@ -28,11 +28,11 @@ namespace ProperShieldWalls
         [SettingPropertyGroup("General", GroupOrder = 0)]
         public int MinAgentsPerSide { get; set; } = 3;
 
-        [SettingPropertyFloatingInteger("Stamina Drain Rate", 0f, 30f, "#0.0",
+        [SettingPropertyFloatingInteger("Stamina Break Threshold", 0f, 1f, "#0.00",
             Order = 3, RequireRestart = false,
-            HintText = "Stamina drained per second while locked. Engagement breaks when either side reaches 0.")]
+            HintText = "Average front-rank stamina ratio (0–1) below which the engagement breaks. Requires StaminaSystem mod. Default 0.25 = 25% stamina.")]
         [SettingPropertyGroup("General", GroupOrder = 0)]
-        public float StaminaDrainRate { get; set; } = 5f;
+        public float StaminaBreakThreshold { get; set; } = 0.25f;
 
         [SettingPropertyBool("Enable Debug Messages", Order = 0, RequireRestart = false,
             HintText = "Show in-game messages for othismos state transitions (PreLock, Locked, Breaking).")]

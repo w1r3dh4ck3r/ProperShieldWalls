@@ -33,9 +33,12 @@ namespace ProperShieldWalls.Behaviours
         }
 
         private bool IsEligible(Formation f)
-            => f != null
-            && f.CountOfUnitsWithoutDetachedOnes >= _settings.MinAgentsPerSide
-            && f.ArrangementOrder.OrderEnum == ArrangementOrderEnum.ShieldWall;
+        {
+            if (f == null || f.CountOfUnitsWithoutDetachedOnes < _settings.MinAgentsPerSide) return false;
+            var order = f.ArrangementOrder.OrderEnum;
+            return order == ArrangementOrder.ArrangementOrderEnum.ShieldWall
+                || order == ArrangementOrder.ArrangementOrderEnum.Line;
+        }
 
         private static float DistanceBetween(Formation a, Formation b)
         {
