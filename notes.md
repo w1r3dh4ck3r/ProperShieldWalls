@@ -31,3 +31,11 @@
 **Open risk:**
 - `unit.SetTargetPosition(unit.GetWorldPosition().AsVec2)` in SlotLockPatch.cs — method may be internal; remove if compile fails
 - `HumanAIComponent.ParallelUpdateFormationMovement` / `ShouldCatchUpWithFormation` — verify names match installed version via ILSpy before adding the slot enforcement postfix
+
+---
+
+## 2026-06-03 — Status check, no changes
+
+**What changed:** Nothing — session was a status review only. Repo clean and up to date with origin/master.
+
+**Current state:** POC code committed, waiting on PC build and test. Next steps unchanged from 2026-05-27 handoff above.
