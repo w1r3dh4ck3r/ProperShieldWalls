@@ -116,7 +116,7 @@
     <!-- <Compile Include="Behaviours\CrowdStateBehavior.cs" /> -->
     <!-- Patches -->
     <Compile Include="Patches\WindupTransparencyPatch.cs" />
-    <!-- <Compile Include="Patches\AttackGatePatches.cs" /> -->
+    <Compile Include="Patches\AttackGatePatches.cs" />
     <!-- Metadata -->
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
