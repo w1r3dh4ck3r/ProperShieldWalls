@@ -50,8 +50,7 @@ namespace ProperShieldWalls.Behaviours
         protected override void OnEndMission()
         {
             if (Diagnostics.Enabled)
-                Diagnostics.Write(string.Format(
-                    "[PSW] ---- mission end: {0} AI swing->overhead remaps ----", Diagnostics.RemapCount));
+                Diagnostics.WriteMissionReport();
 
             CrowdState.Reset();
             SubModule.ResetErrorThrottle();

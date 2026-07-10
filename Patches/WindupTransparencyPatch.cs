@@ -52,10 +52,16 @@ namespace ProperShieldWalls.Patches
 
                 string rejectedBecause = Classify(ref collisionData, attacker, victim, settings);
 
+                // Counted for every agent, so the mission report measures the feature rather than
+                // just the player's own swings. "world-hit" and "enemy" are the overwhelming
+                // majority and say nothing about friendly handling, so they stay out of the tally.
+                if (rejectedBecause != "world-hit" && rejectedBecause != "enemy")
+                    Diagnostics.RecordWindup(rejectedBecause);
+
                 // Log before acting, and log rejections too. A hit turned away at a guard used to
                 // leave no trace, which made "we never saw the collision" and "we saw it and
-                // declined it" look identical in a battle log. Scoped to the player's own attacks
-                // so one skirmish produces a readable file rather than a per-collision storm.
+                // declined it" look identical in a battle log. Per-hit lines are scoped to the
+                // player's own attacks so one skirmish produces a readable file rather than a storm.
                 if (attacker != null && attacker.IsMainAgent && Diagnostics.Enabled)
                     Diagnostics.Write(Describe(ref collisionData, attacker, victim, rejectedBecause));
 

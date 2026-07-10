@@ -22,9 +22,14 @@ namespace ProperShieldWalls
         public bool WindupTransparency { get; set; } = true;
 
         [SettingPropertyBool("Cramped Attack Gating", Order = 2, RequireRestart = false,
-            HintText = "When packed in among friendlies, horizontal swings become overheads. Requires Windup Transparency to be on.")]
+            HintText = "When packed in among friendlies, horizontal swings become overheads. Requires Windup Transparency to be on. AI only — the player is never remapped.")]
         [SettingPropertyGroup("General", GroupOrder = 0)]
         public bool CrampedAttackGating { get; set; } = true;
+
+        [SettingPropertyBool("Friendly Block Passthrough", Order = 3, RequireRestart = false,
+            HintText = "An ally's shield never halts your swing. Without this, a friendly's raised shield blocks or parries your attack — so a surrounded enemy becomes unhittable.")]
+        [SettingPropertyGroup("General", GroupOrder = 0)]
+        public bool FriendlyBlockPassthrough { get; set; } = true;
 
         [SettingPropertyFloatingInteger("Windup Threshold", 0f, 0.6f, "#0.00",
             Order = 3, RequireRestart = false,

@@ -118,6 +118,7 @@
     <Compile Include="Behaviours\AttackGateComponent.cs" />
     <!-- Patches -->
     <Compile Include="Patches\WindupTransparencyPatch.cs" />
+    <Compile Include="Patches\FriendlyBlockPassthroughPatch.cs" />
     <Compile Include="Patches\AttackGatePatches.cs" />
     <!-- Metadata -->
     <Compile Include="Properties\AssemblyInfo.cs" />

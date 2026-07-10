@@ -59,9 +59,15 @@ namespace ProperShieldWalls.Patches
             try
             {
                 // A successful remap is otherwise completely silent, so a no-op gate looks
-                // identical to a working one. Count them; CrowdStateBehavior reports the total.
+                // identical to a working one. Counted per-agent and de-duplicated into swings by
+                // Diagnostics — this method runs every AI decision tick, so a raw count measures
+                // tick rate, not behaviour.
                 if (TryRemap(agent, eventFlags, ref movementFlags))
-                    Diagnostics.RemapCount++;
+                {
+                    var mission = Mission.Current;
+                    if (mission != null)
+                        Diagnostics.RecordRemap(agent.Index, mission.CurrentTime);
+                }
             }
             catch (Exception ex)
             {
