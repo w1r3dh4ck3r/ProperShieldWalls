@@ -100,8 +100,9 @@ namespace ProperShieldWalls
         }
 
         /// <summary>
-        /// Clears the error-throttle counters. Not called from anywhere yet — reserved for a
-        /// future mission-start reset (CrowdStateBehavior, not yet added).
+        /// Clears the per-key error-log throttle counters. Called by CrowdStateBehavior at mission
+        /// start and end. Must reset per mission: an error that storms and self-suppresses in one
+        /// battle must not stay permanently silent for the rest of the session.
         /// </summary>
         internal static void ResetErrorThrottle()
         {
