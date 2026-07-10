@@ -1,0 +1,142 @@
+﻿[PSW] ---- mission start ----
+[PSW] t=8.76 dir=AttackUp strike=Thrust prog=0.519 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=9.74 dir=AttackUp strike=Thrust prog=0.000 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=10.97 dir=AttackUp strike=Thrust prog=0.519 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=15.69 dir=AttackUp strike=Thrust prog=0.000 flags=HitWithArm collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=16.98 dir=AttackUp strike=Thrust prog=0.000 flags=NormalHit collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=19.43 dir=AttackUp strike=Thrust prog=0.000 flags=NormalHit collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=20.86 dir=AttackUp strike=Thrust prog=0.000 flags=HitWithArm collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=21.02 dir=AttackUp strike=Thrust prog=0.563 flags=HitWithArm, HitWithBackOfTheWeapon collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=22.30 dir=AttackUp strike=Thrust prog=0.000 flags=HitWithArm, HitWithBackOfTheWeapon collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=75.52 dir=AttackUp strike=Thrust prog=0.476 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=78.14 dir=AttackDown strike=Thrust prog=0.000 flags=HitWithStartOfTheAnimation collider=1 shieldBack=0 blockedShield=1 result=Parried altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=102.70 dir=AttackUp strike=Thrust prog=0.000 flags=HitWithStartOfTheAnimation collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=104.03 dir=AttackUp strike=Thrust prog=0.173 flags=HitWithArm collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=109.48 dir=AttackUp strike=Thrust prog=0.476 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=111.19 dir=AttackUp strike=Thrust prog=0.000 flags=NormalHit collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=112.54 dir=AttackUp strike=Thrust prog=0.390 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=113.69 dir=AttackUp strike=Thrust prog=0.000 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=114.84 dir=AttackUp strike=Thrust prog=0.000 flags=HitWithArm collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=116.40 dir=AttackUp strike=Thrust prog=0.303 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=116.61 dir=AttackUp strike=Thrust prog=0.598 flags=HitWithStartOfTheAnimation, HitWithArm, HitWithBackOfTheWeapon collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=117.96 dir=AttackUp strike=Thrust prog=0.173 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=119.85 dir=AttackUp strike=Thrust prog=0.000 flags=NormalHit collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=120.95 dir=AttackUp strike=Thrust prog=0.693 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=121.91 dir=AttackUp strike=Thrust prog=0.303 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=123.36 dir=AttackUp strike=Thrust prog=0.519 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=127.89 dir=AttackUp strike=Swing prog=0.025 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=128.99 dir=AttackUp strike=Swing prog=0.921 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=130.01 dir=AttackUp strike=Swing prog=0.921 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=130.96 dir=AttackUp strike=Swing prog=0.225 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=131.96 dir=AttackUp strike=Swing prog=0.725 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=132.77 dir=AttackUp strike=Swing prog=0.025 flags=HitWithArm collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=132.77 dir=AttackUp strike=Swing prog=0.025 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=134.40 dir=AttackRight strike=Swing prog=0.050 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=135.58 dir=AttackUp strike=Swing prog=0.724 flags=HitWithArm collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=136.63 dir=AttackUp strike=Swing prog=0.627 flags=HitWithArm collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=137.68 dir=AttackUp strike=Swing prog=0.924 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=138.62 dir=AttackUp strike=Swing prog=0.722 flags=NormalHit collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=139.44 dir=AttackUp strike=Swing prog=0.027 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=139.46 dir=AttackUp strike=Swing prog=0.226 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=139.46 dir=AttackUp strike=Swing prog=0.226 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=139.46 dir=AttackUp strike=Swing prog=0.226 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=139.46 dir=AttackUp strike=Swing prog=0.226 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=139.48 dir=AttackUp strike=Swing prog=0.325 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=139.57 dir=AttackUp strike=Swing prog=1.000 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=140.60 dir=AttackUp strike=Swing prog=0.725 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=141.60 dir=AttackUp strike=Swing prog=0.225 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=141.69 dir=AttackUp strike=Swing prog=0.921 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=142.50 dir=AttackUp strike=Swing prog=0.025 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=145.74 dir=AttackUp strike=Swing prog=0.921 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=146.65 dir=AttackUp strike=Swing prog=0.921 flags=NormalHit collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=147.53 dir=AttackUp strike=Swing prog=1.000 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=148.41 dir=AttackUp strike=Swing prog=0.822 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=149.25 dir=AttackUp strike=Swing prog=0.822 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=151.24 dir=AttackUp strike=Swing prog=0.921 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=151.86 dir=AttackRight strike=Swing prog=0.161 flags=NormalHit collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=152.63 dir=AttackLeft strike=Swing prog=0.262 flags=NormalHit collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=156.73 dir=AttackRight strike=Swing prog=0.573 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=158.93 dir=AttackUp strike=Swing prog=0.922 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=160.26 dir=AttackUp strike=Swing prog=0.822 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=162.69 dir=AttackRight strike=Swing prog=0.572 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=165.36 dir=AttackDown strike=Thrust prog=0.500 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=1 victim=human friend=0 -> reject:enemy
+[PSW] t=165.38 dir=AttackDown strike=Thrust prog=0.500 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=1 victim=human friend=0 -> reject:enemy
+[PSW] t=165.39 dir=AttackDown strike=Thrust prog=0.500 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=1 victim=human friend=0 -> reject:enemy
+[PSW] t=165.40 dir=AttackDown strike=Thrust prog=0.500 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=1 victim=human friend=0 -> reject:enemy
+[PSW] t=169.69 dir=AttackUp strike=Swing prog=0.922 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=170.72 dir=AttackUp strike=Swing prog=0.822 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=171.65 dir=AttackUp strike=Swing prog=0.924 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=173.73 dir=AttackUp strike=Swing prog=0.924 flags=NormalHit collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=176.31 dir=AttackUp strike=Swing prog=0.921 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=176.31 dir=AttackUp strike=Swing prog=0.921 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=177.12 dir=AttackRight strike=Swing prog=0.290 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=181.16 dir=AttackLeft strike=Swing prog=0.493 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=182.19 dir=AttackUp strike=Swing prog=0.921 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=183.17 dir=AttackRight strike=Swing prog=0.624 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=184.12 dir=AttackRight strike=Swing prog=0.229 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=186.86 dir=AttackUp strike=Swing prog=0.822 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=189.26 dir=AttackUp strike=Swing prog=0.626 flags=HitWithArm, HitWithBackOfTheWeapon collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=189.28 dir=AttackUp strike=Swing prog=0.825 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=190.29 dir=AttackUp strike=Swing prog=0.927 flags=NormalHit collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=195.38 dir=AttackUp strike=Swing prog=0.923 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=197.55 dir=AttackDown strike=Thrust prog=0.500 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=1 victim=human friend=0 -> reject:enemy
+[PSW] t=197.56 dir=AttackDown strike=Thrust prog=0.500 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=1 victim=human friend=0 -> reject:enemy
+[PSW] t=197.57 dir=AttackDown strike=Thrust prog=0.500 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=1 victim=human friend=0 -> reject:enemy
+[PSW] t=197.58 dir=AttackDown strike=Thrust prog=0.500 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=1 victim=human friend=0 -> reject:enemy
+[PSW] t=197.60 dir=AttackDown strike=Thrust prog=0.500 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=1 victim=human friend=0 -> reject:enemy
+[PSW] t=198.65 dir=AttackUp strike=Swing prog=0.921 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=199.39 dir=AttackRight strike=Swing prog=0.289 flags=HitWithArm collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] ==== mission report ====
+[PSW]  windup transparency : 332 friendly hits made transparent
+[PSW]      rejected live-arc             x203
+[PSW]  friendly blocks     : 89 neutralised (ally shield no longer halts the swing)
+[PSW]  cramped gating (AI) : 25 swings remapped across 13 agents (321 input ticks)
+[PSW] ========================
+[PSW] ---- mission start ----
+[PSW] t=9.97 dir=AttackUp strike=Thrust prog=0.909 flags=HitWithArm, HitWithBackOfTheWeapon collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=122.65 dir=AttackDown strike=Thrust prog=0.261 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=124.57 dir=AttackDown strike=Thrust prog=0.357 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=126.03 dir=AttackUp strike=Thrust prog=0.000 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=129.85 dir=AttackDown strike=Thrust prog=0.167 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=129.96 dir=AttackDown strike=Thrust prog=0.181 flags=HitWithStartOfTheAnimation collider=0 shieldBack=0 blockedShield=0 result=HitWorld altAttack=0 victim=none friend=? -> reject:world-hit
+[PSW] t=130.73 dir=AttackUp strike=Thrust prog=0.000 flags=HitWithStartOfTheAnimation collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=130.81 dir=AttackUp strike=Thrust prog=0.000 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=136.75 dir=AttackLeft strike=Swing prog=0.384 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=138.34 dir=AttackUp strike=Swing prog=0.922 flags=HitWithArm, HitWithBackOfTheWeapon collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=139.59 dir=AttackUp strike=Swing prog=1.000 flags=NormalHit collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=140.83 dir=AttackUp strike=Swing prog=0.025 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=145.50 dir=AttackUp strike=Swing prog=0.028 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=145.50 dir=AttackUp strike=Swing prog=0.028 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=146.27 dir=AttackUp strike=Swing prog=0.000 flags=HitWithStartOfTheAnimation collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=149.17 dir=AttackUp strike=Swing prog=0.000 flags=HitWithStartOfTheAnimation collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=152.55 dir=AttackLeft strike=Swing prog=0.000 flags=HitWithStartOfTheAnimation collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=155.55 dir=AttackUp strike=Swing prog=0.000 flags=HitWithStartOfTheAnimation collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=155.99 dir=AttackUp strike=Swing prog=0.000 flags=HitWithStartOfTheAnimation collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=156.61 dir=AttackLeft strike=Swing prog=0.213 flags=NormalHit collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=158.52 dir=AttackUp strike=Swing prog=0.057 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=161.68 dir=AttackLeft strike=Swing prog=0.000 flags=HitWithStartOfTheAnimation collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=163.39 dir=AttackUp strike=Thrust prog=0.000 flags=HitWithStartOfTheAnimation collider=1 shieldBack=0 blockedShield=1 result=Blocked altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=165.29 dir=AttackDown strike=Thrust prog=0.413 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=165.43 dir=AttackDown strike=Thrust prog=0.332 flags=HitWithStartOfTheAnimation collider=1 shieldBack=0 blockedShield=1 result=Parried altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=167.44 dir=AttackUp strike=Thrust prog=0.070 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=169.35 dir=AttackUp strike=Thrust prog=0.825 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=171.20 dir=AttackDown strike=Thrust prog=0.000 flags=HitWithStartOfTheAnimation collider=1 shieldBack=0 blockedShield=1 result=Parried altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=172.80 dir=AttackUp strike=Thrust prog=0.070 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=174.40 dir=AttackUp strike=Thrust prog=0.070 flags=HitWithBackOfTheWeapon collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=174.57 dir=AttackUp strike=Thrust prog=0.619 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=176.56 dir=AttackDown strike=Thrust prog=0.000 flags=HitWithStartOfTheAnimation, HitWithArm collider=1 shieldBack=0 blockedShield=1 result=Parried altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=181.24 dir=AttackDown strike=Thrust prog=0.140 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=182.77 dir=AttackDown strike=Thrust prog=0.140 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=189.47 dir=AttackDown strike=Thrust prog=0.140 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=194.62 dir=AttackUp strike=Thrust prog=0.574 flags=HitWithArm, HitWithBackOfTheWeapon collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=196.19 dir=AttackDown strike=Thrust prog=0.413 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=None altAttack=0 victim=human friend=1 -> reject:live-arc
+[PSW] t=196.19 dir=AttackDown strike=Thrust prog=0.413 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=200.65 dir=AttackDown strike=Thrust prog=0.413 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] t=204.80 dir=AttackLeft strike=Swing prog=0.155 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=1 -> BYPASS
+[PSW] t=205.19 dir=AttackLeft strike=Swing prog=0.583 flags=NormalHit collider=1 shieldBack=0 blockedShield=0 result=StrikeAgent altAttack=0 victim=human friend=0 -> reject:enemy
+[PSW] ==== mission report ====
+[PSW]  windup transparency : 1590 friendly hits made transparent
+[PSW]      rejected live-arc             x1071
+[PSW]  friendly blocks     : 483 neutralised (ally shield no longer halts the swing)
+[PSW]  cramped gating (AI) : 216 swings remapped across 96 agents (1934 input ticks)
+[PSW] ========================

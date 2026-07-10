@@ -372,3 +372,53 @@ Report is uncapped and written once per mission; per-hit lines stay capped at 40
   The block-passthrough may be enough; if not, the `live-arc` rule has to be broadened. This directly contradicts the
   earlier ruling that "an ally in front still stops the blade" — that tension is unresolved and is Mark's call.
 - "Subtle, doesn't look bad" is a visual judgement only Mark can make.
+
+---
+
+## 2026-07-10 (battle 2) — all three features confirmed firing; two threads open
+
+Logs preserved in `docs/logs/` (`PSW_diag_2026-07-10_battle1.log`, `..._battle2.log`) so they survive the
+Windows Documents folder.
+
+### Battle-2 mission reports (both missions)
+
+```
+mission 1:  windup transparency :  332 friendly hits made transparent
+                rejected live-arc x203
+            friendly blocks     :   89 neutralised
+            cramped gating (AI) :   25 swings remapped across 13 agents (321 input ticks)
+
+mission 2:  windup transparency : 1590 friendly hits made transparent
+                rejected live-arc x1071
+            friendly blocks     :  483 neutralised
+            cramped gating (AI) :  216 swings remapped across 96 agents (1934 input ticks)
+```
+
+**No feature reported `<-- FEATURE NEVER FIRED`.** `FriendlyBlockPassthroughPatch` bound and fired (89 / 483
+blocks neutralised), so the postfix on the static `MissionCombatMechanicsHelper.GetDefendCollisionResults` is live.
+The remap counter now reads sanely: 216 swing *events* across 96 agents from 1934 input ticks — the old per-tick
+number would have said "13230".
+
+### The lead for complaint #2 (surrounded enemies unhittable)
+`rejected live-arc x1071` against `1590` bypassed. **~40% of all friendly melee contacts are still taking the
+vanilla path**: `MeleeHitCallback` → friendly-fire stun (Mission.cs:5317) + `Bounced`. That is untouched by both
+current patches. It is the obvious candidate for "an enemy surrounded by my own men can't be hit".
+
+Broadening the `live-arc` rule directly contradicts the earlier design ruling that *"a live strike arc: an ally in
+front still stops the blade"*. **That contradiction is Mark's to resolve — do not pre-empt it.** Also unverified:
+whether the residual halt Mark may still see is `attackerStunPeriod` (left deliberately un-zeroed in
+`FriendlyBlockPassthroughPatch`, one-line change if the log shows blocks neutralised but the hand still catches).
+
+### NEW investigation queued (Mark, 2026-07-10)
+Back-rank units in a packed formation — **not necessarily in ShieldWall order** — never switch to their
+spears/polearms to stab past the front rank. They keep swords or other short weapons even with enemies well inside
+spear reach. Nothing has been investigated yet. Starting points, all UNVERIFIED:
+- `Agent.TryToWieldWeaponInSlot` / `HumanAIComponent` weapon-selection logic
+- `MissionEquipment` / `Agent.GetWieldedItemIndex`
+- RBMAI has its own weapon-choice logic (`PickupMeleeWeapons` transpiler is referenced in project memory) and
+  `StanceLogic.cs` — check whether RBMFork already overrides wielding before assuming vanilla behaviour.
+- Vanilla `AgentAIStateFlagComponent` / formation depth: does the engine even know an agent is in a back rank?
+
+### Reminder
+Branch `feat/cramped-melee-v2` is still UNMERGED and `OutputPath` deploys into the live game folder.
+**Do not build from `master`.**
