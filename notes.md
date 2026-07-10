@@ -159,3 +159,81 @@ identical technique and is validated in-game.
    remapped to overhead it stops clipping, so ~one wide swing leaks through every `CrowdedDuration` (2s).
 5. Merge to `master` only after the in-game pass. **Until then, do not rebuild from `master`** — its source is the
    old othismos code and `OutputPath` deploys straight into the live game folder.
+
+---
+
+## 2026-07-10 — "Meat bullet" root-caused and fixed (commit `d4541b0`, branch `feat/cramped-melee-v2`)
+
+### What happened
+Mark opened the Custom Battle setup screen and the commander models were **folded into a vertical spike** (only the
+banner mesh survived) — the "meat bullet" / folded-character bug. Reproduced A/B/A with screenshots.
+
+### Root cause
+**PSW Harmony-patched `Agent.OnAIInputSet`, which carries `[MBCallback]` — a native engine callback invoked from C++
+with `ref` parameters.** Merely *installing* the patch folds every character. The postfix **body never had to run**:
+no exception, no log line, `rgl_log_errors` empty, and the logic is unreachable on a preview screen anyway
+(`IsCrowded` requires a prior friendly-melee-hit stamp).
+
+Bisected with a temporary `PSW_DIAG.txt` gate on the patch loop (one build, three launches, no rebuild per test):
+
+| `PSW_DIAG.txt` | Applied | Result |
+|---|---|---|
+| `nopatch` | `0 OK` | normal |
+| only `AiAttackGatePatch` | `1 OK` | **FOLDED** |
+| `skip=AiAttackGatePatch` | `2 OK` | normal |
+
+### The fix
+`Agent.OnAIInputSet` does nothing but fan out to components, and `AgentComponent.OnAIInputSet` is `public virtual`.
+So the AI remap now rides that sanctioned extension point:
+- new `Behaviours/AttackGateComponent.cs` (`: AgentComponent`), attached by `CrowdStateBehavior.OnAgentBuild`.
+- `AttackGate.ApplyToInput(agent, eventFlags, ref movementFlags)` mutates the **`ref movementFlag` the engine reads
+  back this tick**, instead of round-tripping `Agent.MovementFlags`.
+- Kick guard now reads the **`ref eventFlag`** param (`Kick = 0x8000`), not a stale property.
+- `AiAttackGatePatch` deleted. Player path (`MissionMainAgentController.ControlTick`) unchanged — ordinary managed method.
+- Verified on the deployed DLL: exactly **2** `[HarmonyPatch]` classes, **none on `Agent`**; `AccessTools.Method(typeof(Agent)…)` count = 0. 27/27 tests pass.
+- `Mission.SpawnAgent` (Mission.cs:4086) calls `OnAgentBuild` at :4360 ⇒ **reinforcements get the component**.
+
+### CORRECTIONS to earlier notes in this file (verified, do not re-assert the old claims)
+- The "**Refuted risk (do not re-investigate)**" section above is now **partly wrong**. Its conclusion (writing
+  `MovementFlags` isn't clobbered) may still hold, but its supporting evidence does not: **`AIKickNBashFork.dll`
+  contains no reference to `OnAIInputSet` at all** (`strings -a` sweep, 2026-07-10). It does *not* use "the identical
+  technique", so it corroborates nothing here. The whole postfix approach is gone regardless.
+- The old `AttackGatePatches.cs` comment claiming AIKickNBash's postfix runs after ours and overwrites the remap was
+  therefore also false. The kick guard is kept defensively, not for ordering.
+- `AttackRemap` constants were **verified correct on v1.4.7** by decompiling the live `TaleWorlds.MountAndBlade.dll`:
+  `AttackLeft=0x40 AttackRight=0x80 AttackUp=0x100 AttackDown=0x200 AttackMask=0x3C0`. §6 open question #1 is closed
+  in the sense that the *values* are right; whether `AttackUp` is the overhead animation is still unproven in-game.
+- Banner now reads **`2 patches OK`**, not 3. That is correct, not a regression.
+- `~/.dotnet/tools/ilspycmd` **exists and works** (only the Windows path recorded in the wiki is absent).
+- Game is on **v1.4.7** (build 117484) since the 2026-07-09 11:49 Steam auto-update, not v1.4.6.
+
+### Status
+- Custom-battle setup screen: **CONFIRMED FIXED** by Mark (2026-07-10 ~10:07, log `Patches: 2 OK, 0 failed`).
+- Cramped-attack gating in a real battle: **STILL NOT VALIDATED.** A silent no-op looks identical to "working"
+  because a successful remap emits no log line.
+
+### Next session — Mark's design feedback (agreed, NOT yet implemented)
+1. **Exempt the player from attack-direction remapping.** Cramped gating should be AI-only. Concretely: delete
+   `PlayerAttackGatePatch` (the `MissionMainAgentController.ControlTick` postfix) — that patch *is* the player remap.
+   The player must keep full manual control of thrust/overhead even when packed among friendlies.
+2. **Keep wind-up transparency for the player** (the collision/clipping half), and make it actually work:
+   > "when I attack overhead my weapon clips on the wind-up on the shield behind me from the friendlies and the
+   > attack stops. It should not stop — it should just cut the wind-up short and release the attack normally.
+   > Overheads with a spear are notoriously bad on this: I pull the weapon back, it collides with a friendly's
+   > shield, and the attack just stops."
+
+   So the desired behaviour is: a friendly collision during wind-up must **not cancel/interrupt** the swing; it should
+   truncate the wind-up and release normally.
+
+   **UNVERIFIED hypotheses to investigate (do not assume):** the current `WindupTransparencyPatch` sets
+   `colReaction = MeleeCollisionReaction.ContinueChecking` and returns `true`, which suppresses the *penalty block*
+   in `Mission.MeleeHitCallback` — but the observed attack **cancellation** may happen on a different path entirely
+   (native weapon-collision / `CrushThroughState` / `Agent.HandleBlow` / stop-attack on blocked sweep), i.e. before
+   or outside `MeleeHitCallback`. Also possible: `WindupThreshold` (0.25) is too low, or
+   `HitWithStartOfTheAnimation` is never set for swings (the engine's only managed use of that flag gates on
+   `StrikeType == Thrust`). Decompile the cancellation path before touching anything.
+3. `Mission.MeleeHitCallback` is **also** `[MBCallback]`. Patching it did not fold the setup screen, but that screen
+   never triggers a melee collision — so its patch is **unproven under real combat**, not proven safe. If hit
+   reactions misbehave, suspect it first.
+4. Merge to `master` only after a real battle passes. **Do not rebuild from `master`** — it still holds the old
+   othismos source and `OutputPath` deploys straight into the live game folder.
