@@ -12,6 +12,9 @@ namespace ProperShieldWalls
     public class SubModule : MBSubModuleBase
     {
         private Harmony _harmony;
+        private static int _patchesApplied;
+        private static int _patchesFailed;
+        private static bool _bannerDisplayed;
 
         protected override void OnSubModuleLoad()
         {
@@ -36,6 +39,8 @@ namespace ProperShieldWalls
                 }
             }
 
+            _patchesApplied = applied;
+            _patchesFailed = failed;
             Log($"[PSW] Proper Shield Walls v2.0.0 loaded. Patches: {applied} OK, {failed} failed.");
         }
 
@@ -43,6 +48,41 @@ namespace ProperShieldWalls
         {
             base.OnMissionBehaviorInitialize(mission);
             mission.AddMissionBehavior(new CrowdStateBehavior());
+        }
+
+        protected override void OnBeforeInitialModuleScreenSetAsRoot()
+        {
+            base.OnBeforeInitialModuleScreenSetAsRoot();
+
+            try
+            {
+                // Guard with a static bool: OnBeforeInitialModuleScreenSetAsRoot can fire more than once
+                // in some flows. We display the banner AT MOST ONCE per process.
+                if (_bannerDisplayed)
+                    return;
+
+                _bannerDisplayed = true;
+
+                string bannerText;
+                Color bannerColor;
+
+                if (_patchesFailed == 0)
+                {
+                    bannerText = string.Format("[PSW] Proper Shield Walls v2.0.0 — {0} patches OK.", _patchesApplied);
+                    bannerColor = Colors.Green;
+                }
+                else
+                {
+                    bannerText = string.Format("[PSW] Proper Shield Walls v2.0.0 — {0} patches OK, {1} FAILED. Mod will not work correctly.", _patchesApplied, _patchesFailed);
+                    bannerColor = Colors.Red;
+                }
+
+                InformationManager.DisplayMessage(new InformationMessage(bannerText, bannerColor));
+            }
+            catch
+            {
+                // Swallow any exception: a cosmetic banner must never break module load.
+            }
         }
 
         protected override void OnSubModuleUnloaded()
