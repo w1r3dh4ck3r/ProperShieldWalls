@@ -459,3 +459,43 @@ into the game folder). Not swept — needs Mark's go-ahead.
 **Optional, NOT done:** a provenance stamp (branch + sha written next to the deployed DLL). Would retire the
 recurring "is the deployed DLL stale / what's actually live?" question that has cost several sessions a
 `strings`-grep. Solves a related problem, not this one.
+
+---
+
+## 2026-07-10 (addendum) — provenance stamp shipped; sibling repos swept
+
+The "Optional, NOT done" item in the previous entry **is now done**, and the two sibling repos were fixed.
+
+### `bl-deploy` (`~/AI/bin`, on PATH) — deploy is now deliberate AND recorded
+```bash
+~/.dotnet/dotnet build ProperShieldWalls.csproj -c Release   # lands in bin/Release/, does NOT deploy
+bl-deploy ProperShieldWalls bin/Release/ProperShieldWalls.dll
+```
+Copies, **verifies the destination sha256 matches the source**, and writes `deployed.json` beside the DLL
+(module, dll, sha256, branch, commit, dirty, repo, UTC). Refuses while Bannerlord is running (the game locks the
+DLL; the failure reads like a WSL mount bug and is not). Refuses a dirty worktree — the deployed DLL would then
+correspond to no commit — unless `--force`, which records `"dirty": true` rather than lying. Both guard branches
+were exercised, then a clean redeploy was done so the on-disk manifest is truthful.
+
+**Read `deployed.json` to answer "what is actually live?"** This retires the recurring `strings`-grep. Verified:
+manifest sha `151679b8…` matches the DLL on disk byte-for-byte.
+
+**The live PSW DLL is `feat/cramped-melee-v2@674147c`, clean.** Same two Harmony patches as battle 2
+(`Mission.MeleeHitCallback`, `MissionCombatMechanicsHelper.GetDefendCollisionResults`), so the next battle tests
+exactly what battle 2 did, plus provenance. Note the live sha is now `151679b8…`, NOT the `1e82830a…` recorded
+earlier — that earlier hash belonged to the pre-`bl-deploy` copy of the *same source*; a rebuild changes the MVID.
+
+### Sibling repos — same misconfiguration, different symptom (a claim I got wrong first)
+`CavalryChargeMultiplier` (`8c511c9`) and `PrisonerTransport` (`f22aab5`) were described as having the "identical
+footgun". They did **not** clobber on this machine. Their `OutputPath` used a literal Windows `D:\...` path, which
+on WSL is not special — MSBuild took it literally and created a junk `./D:/SteamLibrary/.../Modules/<Mod>/...` tree
+**inside the repo**, committed to git in both. On Linux they never deployed; on Windows they would have clobbered.
+
+CCM's root cause was subtler: `<GameFolder>` was set **unconditionally** in the csproj, and `Directory.Build.props`
+is imported *first*, so the csproj overwrote the correct `/mnt/d` Linux value. Fixed with
+`Condition="'$(GameFolder)' == ''"`. CCM's `PostBuild` target also copied into the game folder on every build; it is
+now gated on `-p:Deploy=true`.
+
+Both verified: Release build lands in `bin/Release/`, recreates no `D:` tree, leaves the game folder untouched.
+
+The `bannerlord-mod-build` skill now documents `bl-deploy` and warns that **a build no longer updates the game**.
