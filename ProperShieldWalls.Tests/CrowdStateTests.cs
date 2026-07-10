@@ -75,4 +75,23 @@ public class CrowdStateTests
         CrowdState.Stamp(7, now: 11f, duration: 2f);
         Assert.True(CrowdState.IsCrowded(7, now: 12.5f));
     }
+
+    [Fact]
+    public void StampLargeIndex_DoesNotHang()
+    {
+        // Test with index 50000 to ensure the doubling loop terminates (256 -> 512 -> ... -> 65536).
+        // This probes the path where newSize must be clamped to prevent overflow.
+        CrowdState.Stamp(50000, now: 10f, duration: 2f);
+        Assert.True(CrowdState.IsCrowded(50000, now: 11f));
+    }
+
+    [Fact]
+    public void AfterLargeIndex_NormalIndexStillWorks()
+    {
+        // After stamping a very large index, verify that normal-sized indices still query correctly.
+        CrowdState.Stamp(50000, now: 10f, duration: 2f);
+        CrowdState.Stamp(15, now: 10f, duration: 2f);
+        Assert.True(CrowdState.IsCrowded(15, now: 11f));
+        Assert.False(CrowdState.IsCrowded(15, now: 12.1f));
+    }
 }

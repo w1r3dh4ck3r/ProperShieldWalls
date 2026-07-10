@@ -35,7 +35,18 @@ namespace ProperShieldWalls
             if (index < _crowdedUntil.Length) return;
 
             int newSize = _crowdedUntil.Length;
-            while (newSize <= index) newSize *= 2;
+            while (newSize <= index)
+            {
+                // Prevent unchecked integer overflow: if doubling would exceed int.MaxValue,
+                // clamp to int.MaxValue. (Bannerlord agent indices are bounded to ~thousands;
+                // OutOfMemory is only possible for pathological indices approaching 2^31.)
+                if (newSize > int.MaxValue / 2)
+                {
+                    newSize = int.MaxValue;
+                    break;
+                }
+                newSize *= 2;
+            }
 
             var grown = new float[newSize];
             Array.Copy(_crowdedUntil, grown, _crowdedUntil.Length);
