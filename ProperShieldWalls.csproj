@@ -21,7 +21,8 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>$(GameFolder)\Modules\$(ModuleName)\bin\Win64_Shipping_Client\</OutputPath>
+    <!-- Build never writes into the live game folder. Deploy is a separate cp. See Directory.Build.targets. -->
+    <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -30,7 +31,8 @@
     <PlatformTarget>x64</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>$(GameFolder)\Modules\$(ModuleName)\bin\Win64_Shipping_Client\</OutputPath>
+    <!-- Build never writes into the live game folder. Deploy is a separate cp. See Directory.Build.targets. -->
+    <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>

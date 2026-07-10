@@ -422,3 +422,40 @@ spear reach. Nothing has been investigated yet. Starting points, all UNVERIFIED:
 ### Reminder
 Branch `feat/cramped-melee-v2` is still UNMERGED and `OutputPath` deploys into the live game folder.
 **Do not build from `master`.**
+
+---
+
+## 2026-07-10 — build no longer deploys (the "revert trap" is designed out, not warned about)
+
+**Root cause of the trap:** `Directory.Build.targets:10` unconditionally rewrote `OutputPath` to
+`$(GameFolder)/Modules/ProperShieldWalls/bin/Win64_Shipping_Client/` for every non-test build on Linux (and both
+Windows property groups in the csproj did the same). **Build *was* deploy.** There was no way to compile — not even
+a bare `dotnet build` to check for syntax errors — without overwriting the live DLL. Build from the wrong branch and
+the good deployed DLL was silently gone, with nothing to indicate it.
+
+Every prior session "fixed" this by writing a louder ⚠️ REVERT TRAP warning. A warning is not a fix.
+
+**The fix:** `OutputPath` now points inside the repo (`bin/$(Configuration)/`). Deploy is a separate, deliberate
+`cp`, which is exactly what `MapEventNullFix` and `StaminaSystemOptimized` already do and what the
+`bannerlord-mod-build` skill already documents. PSW was the deviant, not the norm.
+
+Verified: deployed DLL sha256 `1e82830a…` and mtime `11:26:54` are **byte-identical before and after** a full
+`dotnet build -c Release`. The build now lands at `bin/Release/ProperShieldWalls.dll`.
+
+**Consequence for the next session — read this before you panic:** a bare `dotnet build` NO LONGER updates the game.
+After building you must copy the DLL yourself:
+
+```bash
+cp bin/Release/ProperShieldWalls.dll \
+   "/mnt/d/SteamLibrary/steamapps/common/Mount & Blade II Bannerlord/Modules/ProperShieldWalls/bin/Win64_Shipping_Client/"
+```
+
+Costs no convenience: the `bannerlord-mod-build` skill does build+cp in one invocation. You only lose the ability to
+clobber the live DLL by accident.
+
+**Same footgun still present in `CavalryChargeMultiplier` and `PrisonerTransport`** (their csprojs write straight
+into the game folder). Not swept — needs Mark's go-ahead.
+
+**Optional, NOT done:** a provenance stamp (branch + sha written next to the deployed DLL). Would retire the
+recurring "is the deployed DLL stale / what's actually live?" question that has cost several sessions a
+`strings`-grep. Solves a related problem, not this one.
