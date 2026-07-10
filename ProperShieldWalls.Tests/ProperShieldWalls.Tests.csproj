@@ -11,7 +11,7 @@
     <!-- Source-link the pure-logic files. They must not reference TaleWorlds types. -->
     <Compile Include="../CrowdState.cs" Link="CrowdState.cs" />
     <!-- AttackRemap.cs does not exist yet (Task 3 creates it); restored in Task 3 Step 1. -->
-    <!-- <Compile Include="../AttackRemap.cs" Link="AttackRemap.cs" /> -->
+    <Compile Include="../AttackRemap.cs" Link="AttackRemap.cs" />
   </ItemGroup>
 
   <ItemGroup>
