@@ -237,3 +237,77 @@ So the AI remap now rides that sanctioned extension point:
    reactions misbehave, suspect it first.
 4. Merge to `master` only after a real battle passes. **Do not rebuild from `master`** — it still holds the old
    othismos source and `OutputPath` deploys straight into the live game folder.
+
+---
+
+## 2026-07-10 (later) — Player exempted; cancellation path traced end-to-end (commit `dcb0020`)
+
+### The attack-cancellation path, fully traced in the v1.4.7 decompile
+Mark's "the attack just stops" has **three** distinct mechanisms, and **all three live inside the one block our
+existing prefix already skips** (`if (colReaction != MeleeCollisionReaction.ContinueChecking)`, Mission.cs:5305):
+
+1. **Attacker friendly-fire stun.** `CancelsDamageAndBlocksAttackBecauseOfNonEnemyCase` is true for a friendly in
+   SP, so Mission.cs:5317 sets `collisionData.AttackerStunPeriod = StunPeriodAttackerFriendlyFire` and zeroes damage.
+2. **`Bounced`.** `MissionCombatMechanicsHelper.DecideWeaponCollisionReaction` (called Mission.cs:5376), line 118:
+   `if (!IsColliderAgent || registeredBlow.InflictedDamage <= 0) colReaction = Bounced;`
+   A friendly hit **always** reaches this with `InflictedDamage == 0` (zeroed at Mission.cs:5360). So *every* friendly
+   melee contact bounces in vanilla, shield or not.
+3. **`Staggered`.** Same method, line 108:
+   `if (IsColliderAgent && StrikeType == 1 && CollisionHitResultFlags.HasAnyFlag(HitWithStartOfTheAnimation)) -> Staggered`
+   `StrikeType` is `TaleWorlds.Core.StrikeType` — `Invalid=-1, Swing=0, Thrust=1` (decompiled from the live
+   TaleWorlds.Core.dll). **A spear overhead is a Thrust**, which is exactly why Mark says overheads with a spear are
+   the worst offender. This is the only managed consumer of `HitWithStartOfTheAnimation` in the entire assembly.
+
+**Consequence: the behaviour Mark asked for is already implemented.** Setting `ContinueChecking` skips the whole
+block, so no stun, no `Bounced`, no `Staggered` is ever assigned. It has simply **never executed in a battle** — the
+setup screen folded until this morning. Nothing new was needed on the cancellation path itself.
+
+### The one real risk: the `windup` predicate and the entry guards
+The bypass only happens if `WindupTransparencyPatch` decides the hit is a wind-up AND no entry guard rejects it first.
+Two unknowns remain, both **native-populated and NOT derivable from managed code**:
+- Is `HitWithStartOfTheAnimation` set for swings, or only thrusts?
+- Is `IsColliderAgent` true when the weapon clips a friendly's **shield on his back**? Our guard
+  `if (!collisionData.IsColliderAgent) return true;` rejects the hit outright if it is false.
+
+**A dead-code argument that looked convincing and is WRONG (do not re-derive it):** "line 151 converts
+`SlicedThrough -> Bounced` for shield hits, and `SlicedThrough` is only assigned when `!IsColliderAgent`, therefore
+shield hits can be `!IsColliderAgent`." False — line 115 assigns `SlicedThrough` and **returns immediately**. The
+`SlicedThrough` that reaches line 151 comes from line 149, which is only reachable once line 118 has already proven
+`IsColliderAgent == true`. The trailing shield clause says nothing about `IsColliderAgent`. **The guard was therefore
+left alone.** Do not loosen it on reasoning; loosening it blind would silently broaden the bypass and look like success.
+
+### What shipped
+- **`PlayerAttackGatePatch` deleted** (Mark's ruling: gating is AI-only). The exemption is also asserted in
+  `AttackGate.TryRemap` via `agent.IsMainAgent`, since `AttackGateComponent` attaches to the player agent too.
+- Orphaned `AttackGate.Apply` + unused `HarmonyLib` / `View.MissionViews` imports removed.
+- **Banner now reads `1 patch OK`.** Correct — only `Mission.MeleeHitCallback` remains. Verified on the deployed DLL:
+  one `[HarmonyPatch]`, none on `Agent`.
+- Player keeps wind-up transparency (that patch is agent-agnostic, keyed on friend-of-attacker). The two features
+  are independent; task 1 did not touch task 2.
+- `WindupThreshold` deliberately **unchanged**. `DecideSweetSpotCollision` treats `AttackProgress ∈ [0.22, 0.55]` as a
+  live strike, so 0.25 -> 0.22 would make the bypass *stricter* — the wrong direction if the fault is "no bypass".
+  And the live MCM JSON overrides the C# default regardless.
+
+### New instrument (`Diagnostics.cs`) — the old one was blind
+The previous diagnostic logged **after** the early-return guards, so any rejected hit left no trace: "we never saw the
+collision" and "we saw it and declined it" produced identical (empty) output. It also wrote to `InformationManager`,
+which scrolls away mid-battle, and to `Debug.Print`, which nothing on this machine captures.
+
+Now: `Classify()` returns the **name of the rejecting guard** (`world-hit` / `not-collider-agent` / `self-hit` /
+`victim-not-human` / `enemy` / `live-arc`) or null for `BYPASS`, and the outcome is logged before acting, to
+`<Documents>/Mount and Blade II Bannerlord/PSW_diag.log` (400 lines/mission cap, reset per mission). Scoped to the
+**player's own attacks** so a small skirmish yields a readable file. AI swing->overhead remaps are counted and
+reported at mission end (a successful remap is otherwise silent, so a no-op gate looked identical to a working one).
+
+### Next step — Mark at the keyboard (small repro, NOT a 200-man melee)
+`DiagnosticLogging` is already `true` in the live MCM JSON. Stand with 2-3 friendlies packed around you and swing a
+**spear overhead into a friendly's back shield**, the exact case that stops. Then read `PSW_diag.log`:
+
+| Log line | Meaning | Fix |
+|---|---|---|
+| `-> BYPASS` and the attack still stops | cancellation is on a path outside `MeleeHitCallback` | new patch needed; nothing found so far predicts this |
+| `-> reject:not-collider-agent` | shield hits are non-agent colliders | loosen that guard — **now with evidence** |
+| `-> reject:live-arc` | `AttackProgress >= 0.25` and no windup flag | detection/threshold problem |
+| no line at all | the collision never reaches `MeleeHitCallback` | different path entirely |
+
+Merge to `master` only after a real battle passes. **Do not rebuild from `master`.**
