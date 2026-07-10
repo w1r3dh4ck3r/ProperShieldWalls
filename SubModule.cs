@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using HarmonyLib;
 using MCM.Abstractions.Base.Global;
-using ProperShieldWalls.Behaviours;
+// using ProperShieldWalls.Behaviours;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 
@@ -38,17 +38,10 @@ namespace ProperShieldWalls
             Log($"[PSW] Proper Shield Walls v2.0.0 loaded. Patches: {applied} OK, {failed} failed.");
         }
 
-        protected override void OnBeforeInitialModuleScreenSetAsRoot()
-        {
-            base.OnBeforeInitialModuleScreenSetAsRoot();
-            InformationManager.DisplayMessage(
-                new InformationMessage("[PSW] Proper Shield Walls active — shield wall othismos enabled", Colors.Green));
-        }
-
         public override void OnMissionBehaviorInitialize(Mission mission)
         {
             base.OnMissionBehaviorInitialize(mission);
-            mission.AddMissionBehavior(new OthismosBehaviour());
+            // mission.AddMissionBehavior(new CrowdStateBehavior());
         }
 
         protected override void OnSubModuleUnloaded()
@@ -60,7 +53,8 @@ namespace ProperShieldWalls
         internal static void Log(string message)
         {
             Debug.Print(message);
-            if (GlobalSettings<Settings>.Instance?.EnableDebug == true)
+            var settings = GlobalSettings<Settings>.Instance;
+            if (settings != null && settings.DiagnosticLogging)
                 InformationManager.DisplayMessage(new InformationMessage(message, Colors.Cyan));
         }
     }

@@ -2,7 +2,7 @@
 <Module>
     <Name value="Proper Shield Walls"/>
     <Id value="ProperShieldWalls"/>
-    <Version value="v1.1.0"/>
+    <Version value="v2.0.0"/>
     <SingleplayerModule value="true"/>
     <MultiplayerModule value="false"/>
     <Official value="false"/>
@@ -16,7 +16,6 @@
         <DependedModule Id="SandBoxCore"/>
         <DependedModule Id="Sandbox"/>
         <DependedModule Id="StoryMode" Optional="true"/>
-        <DependedModule Id="StaminaSystem" Optional="true"/>
     </DependedModules>
 
     <SubModules>

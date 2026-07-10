@@ -46,7 +46,7 @@
       <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.InputSystem.dll</HintPath>
     </Reference>
     <Reference Update="TaleWorlds.MountAndBlade.View">
-      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.MountAndBlade.View.dll</HintPath>
+      <HintPath>$(GameFolder)/Modules/Native/bin/Win64_Shipping_Client/TaleWorlds.MountAndBlade.View.dll</HintPath>
     </Reference>
     <Reference Update="SandBox">
       <HintPath>$(GameFolder)/Modules/SandBox/bin/Win64_Shipping_Client/SandBox.dll</HintPath>
