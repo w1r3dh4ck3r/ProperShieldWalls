@@ -56,9 +56,18 @@ already does weapon-length-keyed kick and shield-bash):
 
 **Deleted from this repo** (recoverable in git history, HEAD `bd04fd0`): the unvalidated
 "othismos" shield-wall shoving system — `SlotLockPatch`, `AgentAIPatch`, `RegisterBlowPatch`,
-`FriendlyFireCheckPatch`, `ShieldDamagePatch`, `OthismosState`, `StaminaReader`. Five of the
-seven existing Harmony patches. That work never built after its last commit and was never
-validated in-game.
+`FriendlyFireCheckPatch`, `ShieldDamagePatch`, `OthismosState`, `StaminaReader` — **and**
+`DecideCollisionReactionPatch`. Six of the seven existing Harmony patches. That work never built
+after its last commit and was never validated in-game.
+
+`DecideCollisionReactionPatch` (Postfix on `MissionCombatMechanicsHelper.DecideWeaponCollisionReaction`,
+a "safety net restoring `ContinueChecking` if overridden to `Bounced`") is deleted because it guards
+a path that cannot fire. `DecideWeaponCollisionReaction` has exactly **one** call site in the game
+(`Mission.cs:5376`), and it sits inside `MeleeHitCallback` (5297–5397) within the block that
+§4.5's guard already skips. The `AgentApplyDamageModel` overrides that also name the method are
+only reached from that same line.
+
+The single surviving patch is `MeleeHitCallbackPatch`, rewritten. Two new gate patches join it.
 
 ## 4. Verified mechanism (1.4.6 decompile)
 
@@ -120,7 +129,39 @@ therefore a union of the flag and an `AttackProgress` threshold. The threshold's
 `0.25` is a prior, not a measurement: the nearby `0.22` figure is the lower bound of the
 engine's own sweet-spot window in `DecideSweetSpotCollision` (`0.22 ≤ AttackProgress ≤ 0.55`).
 
-### 4.3 The attack-direction lever
+### 4.3 Vanilla's own pass-through path — the hook we use
+
+`MeleeHitCallback`'s body opens with the engine's *existing* friendly pass-through, used for
+kicks and shield bashes (`IsAlternativeAttack`):
+
+```csharp
+if (collisionData.IsAlternativeAttack && !flag && victim != null && victim.IsHuman
+    && collisionData.CollisionBoneIndex != -1 && ...)
+{ colReaction = MeleeCollisionReaction.ContinueChecking; }
+
+if (colReaction != MeleeCollisionReaction.ContinueChecking)
+{
+    // stun, CreateMeleeBlow, RegisterBlow, DecideAgentHitParticles,
+    // DecideWeaponCollisionReaction, MissionBehavior.OnMeleeHit fanout — all of it
+}
+// trailing block (IsShieldBroken / sound alarm) runs unconditionally
+```
+
+**Consequence for the patch shape.** The prefix sets `colReaction = ContinueChecking` and
+returns **`true`**, letting the original run and skip its own penalty block. It does *not*
+return `false`. Three reasons:
+
+1. It reuses the engine's sanctioned pass-through rather than inventing one.
+2. The trailing sound-alarm block still executes — vanilla behavior preserved.
+3. A Harmony prefix returning `false` **suppresses other mods' prefixes** on the same method.
+   `RealisticCombatSounds` and `XorberaxLegacy` both reference `MeleeHitCallback`. Returning
+   `true` keeps them running.
+
+`UpdateMomentumRemaining` lives inside the skipped block, so `inOutMomentumRemaining` is left
+untouched and the swing keeps full momentum through the ally. That is the desired outcome, and
+it comes for free rather than by explicitly declining to write the ref param.
+
+### 4.4 The attack-direction lever
 
 `Agent.AttackDirection` / `GetAttackDirection()` are read-only native wrappers — a dead end.
 The live lever is `Agent.MovementFlags`, a **public get/set** property whose
@@ -141,7 +182,7 @@ AttackLeft=0x40  AttackRight=0x80  AttackUp=0x100  AttackDown=0x200  AttackMask=
 There is **no melee-attack-start event** on `MissionBehavior` (all 40 virtuals were enumerated;
 combat ones fire at hit time). These two tick hooks are the only pre-commit surface.
 
-### 4.4 Cost table
+### 4.5 Cost table
 
 | Member | Cost |
 |---|---|
@@ -157,9 +198,11 @@ combat ones fire at hit time). These two tick hooks are the only pre-commit surf
 Mission.MeleeHitCallback ──Prefix──> WindupTransparencyPatch
                                           │ friendly + windup?
                                           │   ├─ colReaction = ContinueChecking
-                                          │   ├─ return false  (skip stun, blow,
-                                          │   │                 shield dmg, particles)
-                                          │   └─ CrowdState.Stamp(attacker.Index)
+                                          │   ├─ CrowdState.Stamp(attacker.Index)
+                                          │   └─ return true — the original's own
+                                          │      `colReaction != ContinueChecking`
+                                          │      guard then skips stun, blow,
+                                          │      shield dmg, particles (§4.3)
                                           ▼
                                      CrowdState        float[] by Agent.Index
                                           ▲            "crowded until T"
@@ -195,7 +238,7 @@ if (!IsWindup(in collisionData))        return true;   // live strike arc -> van
 
 colReaction = MeleeCollisionReaction.ContinueChecking;
 CrowdState.Stamp(attacker.Index);
-return false;
+return true;   // original runs, then skips its own penalty block (§4.3)
 ```
 
 ```csharp
@@ -205,11 +248,13 @@ static bool IsWindup(in AttackCollisionData d) =>
 ```
 
 The `Team` compare precedes `IsFriendOf` because the common case (same team) short-circuits
-before touching native. `ref inOutMomentumRemaining` is deliberately untouched — the swing keeps
-its momentum through the ally. `ContinueChecking` (not `SlicedThrough`) lets the sweep go on to
-reach an enemy standing behind the ally.
+before touching native. `ContinueChecking` (not `SlicedThrough`) lets the sweep go on to reach an
+enemy standing behind the ally.
 
 `victim.IsHuman` excludes mounts: windup against your own horse keeps vanilla behavior.
+
+**Do not change `return true` to `return false`.** See §4.3 — the `true` return is what preserves
+the trailing sound-alarm block and, more importantly, other mods' prefixes on this method.
 
 ### 5.2 Attack remap
 
@@ -257,6 +302,9 @@ empirically with a log line from each postfix on first build — do not take it 
 Module load order does **not** resolve these conflicts; explicit `[HarmonyPriority]` does.
 Load order only breaks ties between equal priorities.
 
+Because our `MeleeHitCallback` prefix returns `true` (§4.3), it does not suppress any other mod's
+prefix on that method — the `return false` shape would have.
+
 Other mods referencing `MeleeHitCallback` (string-match on shipped DLLs, not necessarily
 patching it): `RBMFork/RBMAI.dll`, `RBMFork/RBMCombat.dll`, `RealisticCombatSounds.dll`,
 `XorberaxLegacy.dll`. `RBMCombat` was decompiled and patches damage math
@@ -269,6 +317,14 @@ patching it): `RBMFork/RBMAI.dll`, `RBMFork/RBMCombat.dll`, `RealisticCombatSoun
 **Index recycling.** `Agent.Index` is reused when agents die and respawn. A new agent inheriting
 a live stamp prefers overheads for under two seconds. A generation counter would fix it; the
 artifact is invisible in play and the code is not worth it.
+
+**F2 is coupled to F1's windup test.** `CrowdState.Stamp` sits *after* the `if (!IsWindup) return`
+guard, so an agent is only ever marked crowded by a **windup** clip. An agent packed tightly
+enough that its swings hit friendlies mid-arc, but never during the windup, is never stamped and
+never remaps. This is very likely vacuous — at that spacing the windup clips too — but it is an
+assumption, not a proof, and §10's in-game test must look for it rather than assume it. It also
+means **disabling `WindupTransparency` silently disables `CrampedAttackGating`.** Either gate the
+settings together or move `Stamp` above the windup guard; decide at implementation time.
 
 **Reactive lag.** The first wide swing in a press still starts before gating engages. It passes
 through the friendly harmlessly (that is F1's whole job), so the cost is one cosmetically wide
@@ -306,6 +362,11 @@ when changing a default during development.
 5. Confirm a pike-armed unit (`BetterPikes`) still thrusts and is never remapped.
 6. Confirm `AIKickNBashFork` kicks still fire (priority resolution works).
 7. Siege, 1000+ agents: frame time unchanged vs baseline.
+8. **Test the §8 coupling:** with `DiagnosticLogging` on, count friendly hits that are *not*
+   windup hits. If that count is non-trivial, agents are being blocked mid-arc without ever
+   being stamped as crowded, and `Stamp` must move above the windup guard.
+9. Confirm `RealisticCombatSounds` and `XorberaxLegacy` still behave — they reference
+   `MeleeHitCallback` and the `return true` shape exists to keep their prefixes alive (§4.3).
 
 ## 11. Deployment
 
