@@ -57,7 +57,7 @@ namespace ProperShieldWalls.Patches
                 // declined it" look identical in a battle log. Scoped to the player's own attacks
                 // so one skirmish produces a readable file rather than a per-collision storm.
                 if (attacker != null && attacker.IsMainAgent && Diagnostics.Enabled)
-                    Diagnostics.Write(Describe(ref collisionData, victim, rejectedBecause));
+                    Diagnostics.Write(Describe(ref collisionData, attacker, victim, rejectedBecause));
 
                 if (rejectedBecause != null) return true;
 
@@ -107,15 +107,23 @@ namespace ProperShieldWalls.Patches
             return null;
         }
 
-        private static string Describe(ref AttackCollisionData cd, Agent victim, string rejectedBecause)
+        private static string Describe(
+            ref AttackCollisionData cd, Agent attacker, Agent victim, string rejectedBecause)
         {
             var mission = Mission.Current;
             float t = (mission != null) ? mission.CurrentTime : 0f;
 
+            // Computed independently of Classify: the not-collider-agent guard rejects before the
+            // friend check runs, so without this a reject line could not confirm the victim was an
+            // ally — exactly the case the repro is meant to establish.
+            string friend = "?";
+            if (attacker != null && victim != null)
+                friend = attacker.IsFriendOf(victim) ? "1" : "0";
+
             return string.Format(
                 CultureInfo.InvariantCulture,
                 "[PSW] t={0:0.00} dir={1} strike={2} prog={3:0.000} flags={4} collider={5} shieldBack={6} " +
-                "blockedShield={7} result={8} altAttack={9} victim={10} -> {11}",
+                "blockedShield={7} result={8} altAttack={9} victim={10} friend={11} -> {12}",
                 t,
                 cd.AttackDirection,
                 cd.StrikeType == 1 ? "Thrust" : (cd.StrikeType == 0 ? "Swing" : "Invalid"),
@@ -127,6 +135,7 @@ namespace ProperShieldWalls.Patches
                 cd.CollisionResult,
                 cd.IsAlternativeAttack ? 1 : 0,
                 victim == null ? "none" : (victim.IsHuman ? "human" : "mount"),
+                friend,
                 rejectedBecause == null ? "BYPASS" : ("reject:" + rejectedBecause));
         }
     }

@@ -23,6 +23,7 @@ namespace ProperShieldWalls
         private static int _lines;
         private static bool _capAnnounced;
         private static bool _sinkBroken;
+        private static bool _pathAnnounced;
 
         /// <summary>Successful AI swing-to-overhead rewrites this mission. A remap is otherwise silent.</summary>
         internal static int RemapCount;
@@ -41,6 +42,20 @@ namespace ProperShieldWalls
             _lines = 0;
             _capAnnounced = false;
             RemapCount = 0;
+        }
+
+        /// <summary>
+        /// Announces the resolved log path on-screen, once per session. The path comes from
+        /// Environment.SpecialFolder.MyDocuments as the *game* process resolves it, which can be
+        /// OneDrive-redirected independently of where the game keeps its Configs. If the file ever
+        /// lands somewhere unexpected, an absent log would read as "the collision never fired"
+        /// rather than "you are reading the wrong file". Say where it went instead of assuming.
+        /// </summary>
+        private static void AnnouncePathOnce()
+        {
+            if (_pathAnnounced) return;
+            _pathAnnounced = true;
+            SubModule.Log("[PSW] diagnostic log: " + (_path ?? "<unresolved>"));
         }
 
         internal static void Write(string line)
@@ -68,6 +83,7 @@ namespace ProperShieldWalls
                 }
 
                 File.AppendAllText(_path, line + Environment.NewLine, Encoding.UTF8);
+                AnnouncePathOnce();
             }
             catch
             {
