@@ -110,7 +110,7 @@
     <Compile Include="SubModule.cs" />
     <Compile Include="Settings.cs" />
     <!-- Pure logic (also compiled by ProperShieldWalls.Tests) -->
-    <!-- <Compile Include="CrowdState.cs" /> -->
+    <Compile Include="CrowdState.cs" />
     <!-- <Compile Include="AttackRemap.cs" /> -->
     <!-- Behaviours -->
     <!-- <Compile Include="Behaviours\CrowdStateBehavior.cs" /> -->

@@ -6,7 +6,7 @@
     If the FrameworkPathOverride path is missing, run once to populate the NuGet cache:
       mkdir /tmp/nb && echo '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net472</TargetFramework></PropertyGroup></Project>' > /tmp/nb/b.csproj && ~/.dotnet/dotnet restore /tmp/nb/b.csproj
   -->
-  <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+  <PropertyGroup Condition="'$(OS)' != 'Windows_NT' AND '$(MSBuildProjectName)' != 'ProperShieldWalls.Tests'">
     <!-- .NET Framework 4.7.2 reference assemblies from the NuGet global cache -->
     <FrameworkPathOverride>$(HOME)/.nuget/packages/microsoft.netframework.referenceassemblies.net472/1.0.3/build/.NETFramework/v4.7.2/</FrameworkPathOverride>
 

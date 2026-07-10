@@ -6,12 +6,12 @@
     SDK-style reference resolution where $(ReferencePath) is insufficient.
   -->
   <!-- Override OutputPath and ModuleDir on Linux to use forward slashes -->
-  <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+  <PropertyGroup Condition="'$(OS)' != 'Windows_NT' AND '$(MSBuildProjectName)' != 'ProperShieldWalls.Tests'">
     <OutputPath>$(GameFolder)/Modules/$(ModuleName)/bin/Win64_Shipping_Client/</OutputPath>
     <ModuleDir>$(GameFolder)/Modules/$(ModuleName)</ModuleDir>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+  <ItemGroup Condition="'$(OS)' != 'Windows_NT' AND '$(MSBuildProjectName)' != 'ProperShieldWalls.Tests'">
     <Reference Update="TaleWorlds.Core">
       <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.Core.dll</HintPath>
     </Reference>
