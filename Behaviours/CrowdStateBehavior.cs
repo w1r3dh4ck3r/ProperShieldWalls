@@ -29,6 +29,10 @@ namespace ProperShieldWalls.Behaviours
             // real fault in battle 2. Resetting per mission restores visibility without
             // allowing in-battle storms.
             SubModule.ResetErrorThrottle();
+            Diagnostics.Reset();
+
+            if (Diagnostics.Enabled)
+                Diagnostics.Write("[PSW] ---- mission start ----");
         }
 
         /// <summary>
@@ -45,8 +49,13 @@ namespace ProperShieldWalls.Behaviours
 
         protected override void OnEndMission()
         {
+            if (Diagnostics.Enabled)
+                Diagnostics.Write(string.Format(
+                    "[PSW] ---- mission end: {0} AI swing->overhead remaps ----", Diagnostics.RemapCount));
+
             CrowdState.Reset();
             SubModule.ResetErrorThrottle();
+            Diagnostics.Reset();
             base.OnEndMission();
         }
     }

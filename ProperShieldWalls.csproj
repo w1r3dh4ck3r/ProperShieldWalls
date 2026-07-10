@@ -109,6 +109,7 @@
     <!-- Entry point -->
     <Compile Include="SubModule.cs" />
     <Compile Include="Settings.cs" />
+    <Compile Include="Diagnostics.cs" />
     <!-- Pure logic (also compiled by ProperShieldWalls.Tests) -->
     <Compile Include="CrowdState.cs" />
     <Compile Include="AttackRemap.cs" />

@@ -1,12 +1,21 @@
 using System;
-using HarmonyLib;
 using MCM.Abstractions.Base.Global;
 using TaleWorlds.Core;
 using TaleWorlds.MountAndBlade;
-using TaleWorlds.MountAndBlade.View.MissionViews;
 
 namespace ProperShieldWalls.Patches
 {
+    /// <summary>
+    /// Cramped attack gating, AI-only.
+    ///
+    /// The player is deliberately exempt: he keeps full manual control of thrust/overhead even when
+    /// packed among friendlies. There is no patch here at all — the AI path rides
+    /// AttackGateComponent, and the former MissionMainAgentController.ControlTick postfix that
+    /// remapped the player's swing has been removed.
+    ///
+    /// The player still gets wind-up transparency: that lives on Mission.MeleeHitCallback, which is
+    /// agent-agnostic and keyed on friend-of-attacker. The two features are independent.
+    /// </summary>
     internal static class AttackGate
     {
         /// <summary>
@@ -20,6 +29,11 @@ namespace ProperShieldWalls.Patches
             if (settings == null || !settings.Enabled || !settings.CrampedAttackGating) return false;
 
             if (agent == null || !agent.IsActive()) return false;
+
+            // The player is never remapped. He keeps manual control of attack direction even when
+            // packed among friendlies. OnAIInputSet is not expected to fire for the main agent, but
+            // the exemption is asserted here rather than assumed.
+            if (agent.IsMainAgent) return false;
 
             // A kick in flight always wins — do not fight it.
             if ((eventFlags & (uint)Agent.EventControlFlag.Kick) != 0) return false;
@@ -44,7 +58,10 @@ namespace ProperShieldWalls.Patches
         {
             try
             {
-                TryRemap(agent, eventFlags, ref movementFlags);
+                // A successful remap is otherwise completely silent, so a no-op gate looks
+                // identical to a working one. Count them; CrowdStateBehavior reports the total.
+                if (TryRemap(agent, eventFlags, ref movementFlags))
+                    Diagnostics.RemapCount++;
             }
             catch (Exception ex)
             {
@@ -53,24 +70,6 @@ namespace ProperShieldWalls.Patches
                 // logging (or allocating a dictionary entry) once per agent per tick forever.
                 SubModule.LogErrorThrottled(
                     "AttackGate.ApplyToInput:" + ex.GetType().Name,
-                    "[PSW] AttackGate error: " + ex.Message);
-            }
-        }
-
-        /// <summary>Player path: no AI input hook exists, so write the property directly.</summary>
-        internal static void Apply(Agent agent)
-        {
-            try
-            {
-                if (agent == null) return;
-                uint flags = (uint)agent.MovementFlags;
-                if (TryRemap(agent, (uint)agent.EventControlFlags, ref flags))
-                    agent.MovementFlags = (Agent.MovementControlFlag)flags;
-            }
-            catch (Exception ex)
-            {
-                SubModule.LogErrorThrottled(
-                    "AttackGate.Apply:" + ex.GetType().Name,
                     "[PSW] AttackGate error: " + ex.Message);
             }
         }
@@ -85,28 +84,6 @@ namespace ProperShieldWalls.Patches
             if (weapon == null) return false;
             if (!weapon.IsMeleeWeapon) return false;
             return weapon.SwingDamageType != DamageTypes.Invalid && weapon.SwingSpeed > 0;
-        }
-    }
-
-    /// <summary>
-    /// The player. Runs LAST (low priority) so we get the final write to MovementFlags,
-    /// after FluidCombatNextNext's postfix has OR'd in its own direction.
-    ///
-    /// NOTE: there is deliberately no patch on Agent.OnAIInputSet. That method is an [MBCallback]
-    /// native engine callback; Harmony-patching it folds every character into a spike (the
-    /// "meat bullet" bug), even when the patch body does nothing. AI agents are handled by
-    /// AttackGateComponent instead, via the engine's own component fan-out.
-    /// </summary>
-    [HarmonyPatch(typeof(MissionMainAgentController), "ControlTick")]
-    internal static class PlayerAttackGatePatch
-    {
-        [HarmonyPostfix]
-        [HarmonyPriority(Priority.Low)]
-        public static void Postfix()
-        {
-            var mission = Mission.Current;
-            if (mission == null) return;
-            AttackGate.Apply(mission.MainAgent);
         }
     }
 }
