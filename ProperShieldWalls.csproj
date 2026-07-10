@@ -114,6 +114,7 @@
     <Compile Include="AttackRemap.cs" />
     <!-- Behaviours -->
     <Compile Include="Behaviours\CrowdStateBehavior.cs" />
+    <Compile Include="Behaviours\AttackGateComponent.cs" />
     <!-- Patches -->
     <Compile Include="Patches\WindupTransparencyPatch.cs" />
     <Compile Include="Patches\AttackGatePatches.cs" />

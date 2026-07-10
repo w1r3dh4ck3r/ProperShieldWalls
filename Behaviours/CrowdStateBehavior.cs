@@ -1,3 +1,4 @@
+using TaleWorlds.Core;
 using TaleWorlds.MountAndBlade;
 
 namespace ProperShieldWalls.Behaviours
@@ -28,6 +29,18 @@ namespace ProperShieldWalls.Behaviours
             // real fault in battle 2. Resetting per mission restores visibility without
             // allowing in-battle storms.
             SubModule.ResetErrorThrottle();
+        }
+
+        /// <summary>
+        /// Attaches the AI attack-gate to every human agent as it spawns. Mission.SpawnAgent calls
+        /// OnAgentBuild on each behavior, so reinforcement waves are covered too — not just the
+        /// initial deployment.
+        /// </summary>
+        public override void OnAgentBuild(Agent agent, Banner banner)
+        {
+            base.OnAgentBuild(agent, banner);
+            if (agent != null && agent.IsHuman)
+                agent.AddComponent(new AttackGateComponent(agent));
         }
 
         protected override void OnEndMission()
