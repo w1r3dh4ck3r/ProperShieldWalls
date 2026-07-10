@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using MCM.Abstractions.Base.Global;
-// using ProperShieldWalls.Behaviours;
+using ProperShieldWalls.Behaviours;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 
@@ -42,7 +42,7 @@ namespace ProperShieldWalls
         public override void OnMissionBehaviorInitialize(Mission mission)
         {
             base.OnMissionBehaviorInitialize(mission);
-            // mission.AddMissionBehavior(new CrowdStateBehavior());
+            mission.AddMissionBehavior(new CrowdStateBehavior());
         }
 
         protected override void OnSubModuleUnloaded()
