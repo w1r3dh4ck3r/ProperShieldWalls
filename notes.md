@@ -311,3 +311,64 @@ reported at mission end (a successful remap is otherwise silent, so a no-op gate
 | no line at all | the collision never reaches `MeleeHitCallback` | different path entirely |
 
 Merge to `master` only after a real battle passes. **Do not rebuild from `master`.**
+
+---
+
+## 2026-07-10 (battle 1) — the log paid for itself; TWO stop paths, not one (commit `59eb6c9`)
+
+### What the battle data said
+`PSW_diag.log`, 129 lines, 2 missions. Outcome histogram: **73 `BYPASS`**, 42 `reject:enemy`, 10 `reject:live-arc`.
+
+- **Wind-up transparency was working all along.** Typical line:
+  `dir=AttackUp strike=Thrust prog=0.000 flags=NormalHit collider=1 blockedShield=1 result=Parried friend=1 -> BYPASS`
+- **`collider=1` on EVERY line**, including every `blockedShield=1` shield hit. The `IsColliderAgent` guard was never
+  the problem. The refuted dead-code argument from earlier today would have "fixed" a guard that was already correct —
+  a wrong fix indistinguishable from success. **The instrument is what caught it. Do not skip it next time.**
+- `prog=0.000` on windup hits confirms `AttackProgress` is ~0 during pull-back, so `WindupThreshold=0.25` is sound.
+  `reject:live-arc` lines sit at `prog=0.347` and `prog=1.000` — real strikes, correctly excluded.
+
+### The actual root cause: a second, independent callback
+Mark: *"the spear passes through but the hand of the character seems to be the part that gets stopped… it stops on
+the friendlies' shields."* The log explains it: `result=Parried` / `result=Blocked`, `blockedShield=1`.
+
+`Mission.MeleeHitCallback` is **not** the only place a friendly contact halts an attack. When native classifies the
+collision as a block or parry it takes a **separate** `[MBCallback]`, `Mission.GetDefendCollisionResults`
+(Mission.cs:6456), which delegates to the static `MissionCombatMechanicsHelper.GetDefendCollisionResults`. That helper
+sets `attackerStunPeriod` (line 240) and `crushedThrough` — **that** is what freezes the arm mid-swing. Nothing we did
+to `MeleeHitCallback` could ever have touched it.
+
+`flags=HitWithArm` even shows up in the log, literally naming the body part Mark saw stop.
+
+### The fix — `FriendlyBlockPassthroughPatch`
+Postfix on the **plain static** `MissionCombatMechanicsHelper.GetDefendCollisionResults`; when attacker and defender
+are friends and `collisionResult` is `Blocked`/`Parried`/`ChamberBlocked`, set `crushedThrough = true`.
+
+- **Target the static helper, NOT `Mission.GetDefendCollisionResults`.** The wrapper is `[MBCallback(null, true)]` —
+  the same class of native callback whose patching folded every character (`Agent.OnAIInputSet`). The helper is
+  ordinary managed code. Its signature carries an extra `ref bool chamber` the wrapper does not.
+- **Precedent:** the Nexus mod `UnblockableThrust` postfixes this exact static and mutates `ref crushedThrough`.
+  Decompiled and copied deliberately.
+- **`Priority.Last`** — postfixes sort DESCENDING, and three other *enabled* mods postfix this method
+  (`UnblockableThrust`, `RealisticCombatAdjustments`, `StaminaSystemFork`). We need the final write.
+- **Only `crushedThrough` is set.** `attackerStunPeriod` is deliberately left alone: if the next log still shows a
+  halt, residual stun is the next suspect and it is a one-line change. Do not pre-emptively zero it.
+- Applies to **all friendly pairs, any attack phase** — not windup-only. An ally's raised shield otherwise makes a
+  surrounded enemy unhittable, which is Mark's second complaint.
+- New MCM toggle `Friendly Block Passthrough` (default on). The key was written into the live JSON by hand, because a
+  missing key in an existing settings file is exactly the trap in `reference_mcm_settings_file_generation`.
+
+### Metrics rebuilt — the old one measured effort, not effect
+`mission end: 13230 AI swing->overhead remaps` was a **per-tick** count (`OnAIInputSet` fires every AI decision tick),
+so it proved nothing. The mission report now separates the three features and flags any that never fired:
+- wind-up transparency: friendly hits made transparent + **rejects broken down by reason**
+- friendly blocks neutralised
+- cramped gating: remap **events** (per-agent, de-duplicated with a 0.5 s gap) + distinct agents + raw ticks
+
+Report is uncapped and written once per mission; per-hit lines stay capped at 400 and scoped to the player's attacks.
+
+### Still open
+- **Mark's complaint #2 (surrounded enemies unhittable) is NOT proven fixed.** A friendly hit at full swing takes
+  `reject:live-arc` → vanilla → friendly-fire stun (Mission.cs:5317) + `Bounced`, a path this patch does not touch.
+  The block-passthrough may be enough; if not, the `live-arc` rule has to be broadened. This directly contradicts the
+  earlier ruling that "an ally in front still stops the blade" — that tension is unresolved and is Mark's call.
+- "Subtle, doesn't look bad" is a visual judgement only Mark can make.
