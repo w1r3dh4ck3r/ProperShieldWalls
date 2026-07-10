@@ -37,7 +37,13 @@ namespace ProperShieldWalls.Patches
             }
             catch (Exception ex)
             {
-                SubModule.Log("[PSW] AttackGate error: " + ex.Message);
+                // Key = patch name + exception type, not ex.Message: Apply() runs from
+                // Agent.OnAIInputSet at AI-decision-tick rate for every active AI agent, so a
+                // repeating fault must collapse into one throttled bucket instead of logging (or
+                // allocating a dictionary entry) once per agent per tick forever.
+                SubModule.LogErrorThrottled(
+                    "AttackGate:" + ex.GetType().Name,
+                    "[PSW] AttackGate error: " + ex.Message);
             }
         }
 

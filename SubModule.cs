@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using MCM.Abstractions.Base.Global;
@@ -56,6 +57,55 @@ namespace ProperShieldWalls
             var settings = GlobalSettings<Settings>.Instance;
             if (settings != null && settings.DiagnosticLogging)
                 InformationManager.DisplayMessage(new InformationMessage(message, Colors.Cyan));
+        }
+
+        // How many times a given fault key is logged before it goes silent for the rest of the
+        // session. Keeps a repeating fault from becoming an unthrottled per-tick/per-agent log
+        // storm (the exact class of bug that previously caused ~100k/session assert-storm hitches).
+        private const int ErrorThrottleCap = 3;
+
+        // Keyed by fault identity (patch + exception type), not by the exception's Message text,
+        // so that N different faults get N buckets but the SAME fault repeating every tick/agent
+        // collapses into one bucket instead of growing this dictionary without bound.
+        private static readonly Dictionary<string, int> _errorThrottleCounts = new Dictionary<string, int>();
+
+        /// <summary>
+        /// Error-path-only logging for catch blocks in hot per-tick/per-agent paths. Emits the
+        /// first <see cref="ErrorThrottleCap"/> occurrences of a given <paramref name="key"/>
+        /// normally, then one final "suppressed" line, then stays silent for that key for the
+        /// rest of the session. The happy path (no exceptions) never calls this, so it costs
+        /// nothing when nothing is wrong.
+        ///
+        /// Main-thread only: called exclusively from catch blocks inside Harmony patches on
+        /// Agent.OnAIInputSet / MeleeHitCallback / MissionMainAgentController.ControlTick, all of
+        /// which run on Bannerlord's main simulation thread. No lock is taken because nothing
+        /// else can touch _errorThrottleCounts concurrently.
+        /// </summary>
+        internal static void LogErrorThrottled(string key, string message)
+        {
+            int count;
+            _errorThrottleCounts.TryGetValue(key, out count);
+            count++;
+            _errorThrottleCounts[key] = count;
+
+            if (count <= ErrorThrottleCap)
+            {
+                Log(message);
+            }
+            else if (count == ErrorThrottleCap + 1)
+            {
+                Log(string.Format("[PSW] further '{0}' errors suppressed for this session.", key));
+            }
+            // else: already announced suppression for this key; stay silent.
+        }
+
+        /// <summary>
+        /// Clears the error-throttle counters. Not called from anywhere yet — reserved for a
+        /// future mission-start reset (CrowdStateBehavior, not yet added).
+        /// </summary>
+        internal static void ResetErrorThrottle()
+        {
+            _errorThrottleCounts.Clear();
         }
     }
 }

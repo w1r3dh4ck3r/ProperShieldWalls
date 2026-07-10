@@ -57,12 +57,21 @@ namespace ProperShieldWalls.Patches
                 if (!windup) return true;   // live strike arc: an ally in front still stops the blade
 
                 colReaction = MeleeCollisionReaction.ContinueChecking;
-                CrowdState.Stamp(attacker.Index, Mission.Current.CurrentTime, settings.CrowdedDuration);
+                var mission = Mission.Current;
+                if (mission != null)
+                {
+                    CrowdState.Stamp(attacker.Index, mission.CurrentTime, settings.CrowdedDuration);
+                }
                 return true;
             }
             catch (Exception ex)
             {
-                SubModule.Log("[PSW] WindupTransparencyPatch error: " + ex.Message);
+                // Key = patch name + exception type, not ex.Message: this runs on every melee
+                // collision, so a repeating fault must collapse into one throttled bucket instead
+                // of logging (or allocating a dictionary entry) once per collision forever.
+                SubModule.LogErrorThrottled(
+                    "WindupTransparencyPatch:" + ex.GetType().Name,
+                    "[PSW] WindupTransparencyPatch error: " + ex.Message);
                 return true;
             }
         }
