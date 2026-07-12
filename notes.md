@@ -745,3 +745,50 @@ leak question) and the **Square census** (`DiagnosticLogging` is ON; a Square in
 Mark says he keeps the unit status bars off, but **no RBM setting maps to that** — the only hide path in code is
 `UnitStatusVM._keyToggled` (Ctrl+H; initialised `true`, so hidden until toggled). If hidden, the RBM fix should
 take that method to ~zero; if shown, the win is partial. The sweep settles it.
+
+---
+
+## 2026-07-12 (battle 1) — the measurement failed; a false-negative process check cost the run
+
+### What happened
+Both fixes were live in the DLLs, Mark fought a battle, and it produced **zero perf data**. Not a bad result — **no
+result**. `MapEventNullFix20260712.log` is unambiguous: `=== SESSION START ===` at **16:59:05**, and the perf flags
+were written to the MCM JSON at **17:02:32** — 3.5 minutes *after* the game had already loaded. The flags are
+`RequireRestart` (applied at `OnSubModuleLoad`), so they were read as `false`. **0** `PERFORMANCE REPORT` lines in
+that session; the 14:36 baseline has one. The settings file was also edited *under a running game* — it happened not
+to get clobbered on exit, which was luck, not design.
+
+### Root cause — and it is a *class* of bug, not a typo
+The "is the game closed?" gate was `tasklist.exe | grep -i "Bannerlord.exe"`. **Mark launches through BLSE, so the
+live process is `Bannerlord.BLSE.Standalone.exe` — which does not contain the substring `Bannerlord.exe`.** The grep
+returned nothing and was read as "closed" while the game was mid-load.
+
+The existing global rule warns against `pgrep` because a query can match *itself* (false positive). This is the
+mirror image: **a query so specific it cannot match the truth (false negative).** The generalisable lesson, now
+written into global `CLAUDE.md`:
+
+> **A negative from an over-specific query is not evidence of absence.** When a check gates a destructive or
+> expensive action, make the query BROAD. A false positive costs one question; a false negative costs the run.
+
+Fixed in three places (all were carrying the same broken check): global `CLAUDE.md`, the `bannerlord-perf-sweep`
+skill (which was actively *recommending* it), and `bannerlord-mod-build` (whose `IMAGENAME eq Bannerlord.exe` filter
+had the identical hole). Correct form:
+```bash
+/mnt/c/Windows/System32/tasklist.exe 2>/dev/null | grep -iE "bannerlord|taleworlds" || echo CLOSED
+```
+
+### What battle 1 DID establish
+- **No crash.** 85 mods loaded with `ArtemsCinematicCombatFork` in the load order, a full mission ran, clean exit.
+  This was the genuine risk: the ILSpy base-cast (`callvirt`) artifact would have thrown a StackOverflow at mission
+  entry. It did not. The IL verification held up in practice.
+- **PSW ran** (mission report present) but the formation census shows **only `Line`** — **no Square appeared**, so
+  the Square census remains open. Nothing to read into that; it was simply not a Square battle.
+- **Still UNCONFIRMED: did the ACC fork actually load?** ACC writes nothing to any log, so no disk evidence can
+  settle it. Must be answered by Mark (did the BLSE unsigned-DLL CAUTION appear, and was it accepted?). A declined
+  CAUTION loads the module **disabled** — indistinguishable from "the fix did nothing".
+
+### State for next session
+**Instruments are ARMED and deliberately LEFT ON** (`EnablePerformanceProfiling`, `EnableMissionBehaviorTiming`,
+`EnablePerfScopeLog`, `EnableMemoryTracker` = true; attribution deliberately false). Game is closed, JSON validated.
+**Nothing to rebuild, redeploy or edit — Mark just relaunches and fights.** Stale baseline archived to
+`Configs/ModLogs/PerfScope20260712-BASELINE-1436.log`. Turn the flags off only once the numbers are read.

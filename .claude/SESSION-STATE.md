@@ -4,8 +4,9 @@
 **PSW itself is DONE and MERGED** (`9fae4a1`, master, 38/38 tests, 0.149% of frame). No PSW code touched
 this session. The job is the **frame eaters** — and both are now FIXED IN CODE but **NOT YET MEASURED**.
 
-## Next Step — Mark runs ONE battle, then we read the numbers
+## Next Step — Mark refights (battle 1 measured NOTHING, see below), then we read the numbers
 Both fixes are built, deployed, and verified present in the live DLLs. What is missing is the A/B proof.
+**Nothing needs to be changed or re-deployed — just relaunch and fight.** The instruments are already armed.
 
 Use the **`bannerlord-perf-sweep`** skill (it owns enable → battle → evaluate → **turn the flags back off**).
 Fight a 300v300 comparable to the baseline run, then compare against these baseline figures:
@@ -19,12 +20,35 @@ Fight a 300v300 comparable to the baseline run, then compare against these basel
 **BLSE will show a one-time unsigned-DLL CAUTION for `ArtemsCinematicCombatFork.dll` (a new, untrusted DLL
 name).** Accept it. If it is declined the module loads DISABLED and every number above is a false negative.
 
-**Perf instruments are ARMED for this battle** (set in the live MCM JSON, `MapEventNullFix_v1.json`):
-`EnablePerformanceProfiling`, `EnableMissionBehaviorTiming` (this is the one that emits the per-mod owner table),
-`EnablePerfScopeLog` (persists the report to disk), `EnableMemoryTracker` (5 s samples) = **true**;
-`EnableHarmonyPatchAttribution` deliberately **false** — attribution inflates the ms and that is exactly why the
-baseline run was trustworthy. **TURN THESE BACK OFF after reading the results** — leaving them on is itself a
-hitch risk. The `bannerlord-perf-sweep` skill owns that teardown.
+### ⚠ BATTLE 1 (2026-07-12 17:06) PRODUCED **ZERO** PERF DATA — do not go looking for its numbers
+`=== SESSION START ===` was **16:59:05**; the perf flags were written at **17:02:32**, i.e. 3.5 min AFTER the game
+had already loaded. The flags are `RequireRestart` (patched at `OnSubModuleLoad`), so they were read as `false`.
+Confirmed: **0** `PERFORMANCE REPORT` lines in that session (the 14:36 baseline has one).
+
+**Root cause — now fixed in 3 places, do not reintroduce:** the "is the game running?" check grepped `tasklist` for
+`Bannerlord.exe`. **Mark launches via BLSE, so the process is `Bannerlord.BLSE.Standalone.exe`, which does NOT
+contain that substring** → false negative → a live config got edited under a running game. Correct check, now in
+global `CLAUDE.md` + the `bannerlord-perf-sweep` and `bannerlord-mod-build` skills:
+```bash
+/mnt/c/Windows/System32/tasklist.exe 2>/dev/null | grep -iE "bannerlord|taleworlds" || echo CLOSED
+```
+
+**Instruments are ARMED and must STAY ON until the sweep is actually read.** In `MapEventNullFix_v1.json`:
+`EnablePerformanceProfiling`, `EnableMissionBehaviorTiming` (**this** is the one emitting the per-mod owner table),
+`EnablePerfScopeLog` (persists the report), `EnableMemoryTracker` (5 s samples) = **true**;
+`EnableHarmonyPatchAttribution` deliberately **false** (attribution inflates the ms — that is why the baseline was
+trustworthy). The game is CLOSED and the JSON is valid, so **the next launch picks them up with no further edits.**
+**Turn them off only AFTER reading the results** (`bannerlord-perf-sweep` owns that teardown) — leaving them on is
+itself a hitch risk. The stale baseline is archived as `Configs/ModLogs/PerfScope20260712-BASELINE-1436.log`.
+
+### What battle 1 DID prove (not nothing)
+The game loaded all 85 mods with the fork in the load order, ran a full mission, and **exited cleanly — no crash,
+no StackOverflow.** That was the one real fear: the ILSpy base-cast artifact would have blown up at mission entry.
+PSW ran too (mission report present) but the census shows **only `Line`** — **no Square appeared**, so that item
+stays open.
+**UNCONFIRMED:** whether `ArtemsCinematicCombatFork` actually *loaded*. ACC writes nothing to any log, so disk
+evidence cannot settle it. Ask Mark whether he saw/accepted the BLSE unsigned-DLL CAUTION and whether cinematic
+kill-moves still fire. If it was declined the module loads **disabled**, which looks exactly like "the fix did nothing".
 
 ### UNVERIFIED HYPOTHESIS — do not treat as fact (it sets the expected size of the RBM win)
 Mark says he keeps the unit status bars off ("disabled for realism, minimal UI"). But **RBMConfig contains NO
@@ -89,4 +113,4 @@ Not PSW. `~/AI/projects/ArtemsCinematicCombatFork/scripts/{normalize.sh,perf-fix
 `~/AI/projects/RBMFork/Source/RBM/RBM.AgentStatusBar/UnitStatusVM.cs` if the sweep says the fixes underdeliver.
 Skill docs for the fork (wiki page, project-docs CLAUDE/ARCHITECTURE/STACK/WORKFLOW) were NOT written — outstanding.
 
-<!-- session-state-sync: last written by session 5a48b925 at 2026-07-12 16:57:21 -0300 -->
+<!-- session-state-sync: last written by session 5a48b925 at 2026-07-12 17:26:00 -0300 -->
