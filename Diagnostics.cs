@@ -54,6 +54,14 @@ namespace ProperShieldWalls
         private static int _rotationShieldlessFront;
         private static int _rotationFormations;
         private static int _rotationSkippedDetached;
+        private static int _rotationErrors;
+
+        /// <summary>
+        /// Keyed by a formatted (order, spacing, interval, eligible) string so distinct combinations
+        /// are counted once with a hit count — NOT one entry per sweep, which runs 2x/second and
+        /// would be a log storm.
+        /// </summary>
+        private static readonly Dictionary<string, int> _formationCensus = new Dictionary<string, int>();
 
         internal static bool Enabled
         {
@@ -79,6 +87,8 @@ namespace ProperShieldWalls
             _rotationShieldlessFront = 0;
             _rotationFormations = 0;
             _rotationSkippedDetached = 0;
+            _rotationErrors = 0;
+            _formationCensus.Clear();
         }
 
         /// <summary>Counted unconditionally: these are ints, and gating them on a settings read would cost more.</summary>
@@ -139,6 +149,28 @@ namespace ProperShieldWalls
             _rotationFormations++;
         }
 
+        /// <summary>An exception escaped Sweep() and was caught by OnMissionTick's catch block.</summary>
+        internal static void RecordRotationError()
+        {
+            _rotationErrors++;
+        }
+
+        /// <summary>
+        /// Every formation the sweep examines, whether or not it passes the eligibility gate — the
+        /// point is to see what we SKIP. unitCount is deliberately excluded from the key: it changes
+        /// as men die and would explode the dictionary, so it is not tracked at all.
+        /// </summary>
+        internal static void RecordFormationCensus(string orderName, int unitSpacing, float interval, int unitCount, bool eligible)
+        {
+            string key = string.Format(CultureInfo.InvariantCulture,
+                "{0,-12} spacing={1} interval={2:0.000} eligible={3}",
+                orderName, unitSpacing, interval, eligible ? 1 : 0);
+
+            int n;
+            _formationCensus.TryGetValue(key, out n);
+            _formationCensus[key] = n + 1;
+        }
+
         /// <summary>
         /// One report per mission, per feature. This is the artefact that answers "is it working";
         /// the per-hit lines above it only explain WHY when a number looks wrong.
@@ -169,6 +201,23 @@ namespace ProperShieldWalls
                 "[PSW]  shield rotation     : {0} swaps across {1} formation-sweeps ({2} shieldless front-rankers seen, {3} skipped as detached){4}",
                 _rotationSwaps, _rotationFormations, _rotationShieldlessFront, _rotationSkippedDetached,
                 _rotationSwaps == 0 ? "   <-- FEATURE NEVER FIRED" : ""));
+
+            if (_rotationErrors > 0)
+                Append(string.Format(CultureInfo.InvariantCulture,
+                    "[PSW]      errors caught: {0}   <-- SWEEP IS THROWING", _rotationErrors));
+
+            Append("[PSW]      formation census:");
+            if (_formationCensus.Count == 0)
+            {
+                Append("[PSW]        (no formations seen at all)");
+            }
+            else
+            {
+                foreach (var kv in _formationCensus)
+                    Append(string.Format(CultureInfo.InvariantCulture,
+                        "[PSW]        {0}  x{1}", kv.Key, kv.Value));
+            }
+
             Append("[PSW] ========================");
         }
 

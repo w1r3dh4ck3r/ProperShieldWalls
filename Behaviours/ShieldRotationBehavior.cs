@@ -47,6 +47,8 @@ namespace ProperShieldWalls.Behaviours
             }
             catch (Exception ex)
             {
+                Diagnostics.RecordRotationError();
+
                 // Runs 2x/second for the whole battle: an unthrottled log here is a storm.
                 SubModule.LogErrorThrottled(
                     "ShieldRotationBehavior:" + ex.GetType().Name,
@@ -69,6 +71,14 @@ namespace ProperShieldWalls.Behaviours
 
                     var arrangement = formation.Arrangement;
                     if (arrangement == null || arrangement.UnitCount < 2) continue;
+
+                    bool eligible = formation.Interval <= 0f;
+                    Diagnostics.RecordFormationCensus(
+                        formation.ArrangementOrder.OrderEnum.ToString(),
+                        formation.UnitSpacing,
+                        formation.Interval,
+                        arrangement.UnitCount,
+                        eligible);
 
                     // Vanilla's OWN guard, inverted. It bails when Interval <= 0, which today means
                     // exactly ShieldWall and Square. Testing Interval rather than hard-coding the
