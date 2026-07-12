@@ -76,12 +76,12 @@ namespace ProperShieldWalls.Behaviours
                     // and we never touch Line/Circle, where vanilla's rotation already works.
                     if (formation.Interval > 0f) continue;
 
-                    RotateFormation(formation, arrangement);
+                    RotateFormation(arrangement);
                 }
             }
         }
 
-        private void RotateFormation(Formation formation, IFormationArrangement arrangement)
+        private void RotateFormation(IFormationArrangement arrangement)
         {
             _files.Clear();
 
@@ -138,6 +138,18 @@ namespace ProperShieldWalls.Behaviours
             {
                 Agent a = _column[swap.A];
                 Agent b = _column[swap.B];
+
+                // Defence in depth. Within a single synchronous sweep an agent cannot actually die
+                // between the snapshot above and this call, so this should never fire — but
+                // SwitchUnitLocations has no guard of its own and would index _units2D[-1, -1] and
+                // throw, inside OnMissionTick, on every frame. Both RBMFork and FrontlineModFork
+                // guard this same call against null/inactive units, which is reason enough.
+                //
+                // Skipping WITHOUT mirroring is correct: the game state did not change either, so the
+                // local column and the arrangement stay in agreement. The file is simply left partly
+                // unsorted and the next sweep finishes the job.
+                if (a == null || b == null || !a.IsActive() || !b.IsActive())
+                    continue;
 
                 arrangement.SwitchUnitLocations(a, b);
                 Diagnostics.RecordShieldSwap();
