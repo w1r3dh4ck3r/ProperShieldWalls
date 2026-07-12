@@ -499,3 +499,59 @@ now gated on `-p:Deploy=true`.
 Both verified: Release build lands in `bin/Release/`, recreates no `D:` tree, leaves the game folder untouched.
 
 The `bannerlord-mod-build` skill now documents `bl-deploy` and warns that **a build no longer updates the game**.
+
+---
+
+## 2026-07-11 — battle 3 read; the campaign restarts as one-feature-at-a-time
+
+### Two false premises, both caught by verifying
+- "No battle 3 log exists" was **wrong**. The `find` used `-maxdepth 4`; the log sits at depth 5
+  (`/mnt/c/Users/w1r3d/Documents/...`, NOT `/mnt/c/Users/Mark Lewis/`). A fresh `PSW_diag.log` was 16 minutes old.
+  An empty result from a filtered search is not evidence of absence.
+- The **queued back-rank spear investigation is already DONE** — solved today in the sibling repo
+  `SpearPreferenceFork` (`73b60bc feat(spearpref): disable javelin melee usage so native picks the spear itself`,
+  session-4 notes say "behavior validated, remote pushed"). It was nearly re-opened from scratch here.
+  **Do not investigate it in PSW.**
+
+### Battle 3 (live DLL `674147c`, same two patches as battle 2)
+```
+windup transparency : 12378 friendly hits made transparent
+    rejected live-arc            x5233
+friendly blocks     : 3524 neutralised
+cramped gating (AI) : 662 swings remapped across 316 agents (6829 input ticks)
+```
+All three features fire. live-arc rejects fell from ~40% of friendly contacts (battle 2) to ~30%, but **5233
+friendly contacts still take the vanilla path** (friendly-fire stun + `Bounced`).
+
+**The log cannot close complaint #2.** It proves the path is *taken*, not that it *ruins the fight*. That is a felt
+judgement and only Mark's. Battles 1–3 all ran three features at once, so nothing was ever attributable anyway.
+
+### The real find: complaint #2 needs no code change to answer
+`live-arc` is literally `AttackProgress >= WindupThreshold` (`WindupTransparencyPatch.Classify`, lines 106–111),
+and **`Windup Threshold` is an in-game MCM slider ranging 0 → 0.60** (default 0.25). Every PSW toggle is
+`RequireRestart=false`, so features can be flipped *mid-battle*.
+
+So the design question the last three sessions deferred to Mark ("broaden live-arc?") is answerable **empirically,
+by dragging a slider**: run the same fight at 0.25 and at 0.60. If the surrounded enemy dies at 0.60, the fix
+direction is confirmed before a line is written. Honest limit: even at max, contacts past 60% of the swing still
+bounce — a *partial* improvement means the guard has to be removed in code, which fully reverses the
+"an ally in front still stops the blade" ruling. That remains Mark's call.
+
+### Shipped
+- `docs/06-TEST-PLAN.md` — Tests 0 (vanilla baseline) / A (windup) / B (block passthrough) / C (cramped, AI-only) /
+  D (the threshold probe). Fixed arena: infantry-only Custom Battle, player standing *inside* his own shield wall.
+- **Config stamp in every mission report** (`Diagnostics.DescribeConfig`). Toggles are live and the log appends, so
+  a multi-mission campaign would otherwise be unattributable. Reports now open with
+  `config: enabled=1 windup=1 cramped=0 blockPass=0 threshold=0.25 crowdedDur=2.0`.
+- Deployed `feat/cramped-melee-v2@8d3153e`. **Combat behaviour is unchanged from `674147c`** — diagnostics only.
+  Verified the new literal is in the live DLL with `strings -el` (plain `strings` misses .NET's UTF-16 `#US` heap —
+  an ASCII grep returning nothing there proves nothing).
+
+### Testing gotchas worth keeping
+- **Per-hit log lines are the PLAYER's swings only** (`attacker.IsMainAgent`), capped 400/mission. The mission-report
+  counts are all agents, uncapped.
+- **Cramped gating cannot be felt** — it is AI-only, the player is never remapped. Judge it by the remap count, not
+  by eye; "I couldn't see it" is not evidence it is dead.
+
+### Next
+Mark runs Tests 0/A/B/C/D. Results pending — no coding until they land.

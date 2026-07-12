@@ -89,11 +89,13 @@ can *feel* it.
 **Compare against:** Test A (the only difference is cramped gating).
 **Cramped gating cannot be felt — it never touches you.** It is AI-only; the player is never remapped.
 
-**So don't try to feel it — WATCH your troops.** In a packed shield wall, do they **stab/chop overhead** instead of
-winding up horizontal swings that would carve into their neighbours?
-**Log:** `cramped gating (AI) : N swings remapped across M agents`. N and M > 0.
+**Judge this one from the log, not your eyes.** Picking overheads out of 30 men flailing in a melee is a genuinely
+hard visual call, and "I couldn't see it" is NOT evidence the feature is dead.
 
-Best viewed with the free camera / RTS camera looking down your own front rank.
+**Pass/fail:** `cramped gating (AI) : N swings remapped across M agents` — N and M > 0 means it fired.
+**Bonus (optional):** with the free/RTS camera looking down your own front rank, see whether packed men chop
+**overhead** rather than winding up horizontal swings into their neighbours. If you can see it, great. If not,
+the count still decides it.
 
 ---
 
