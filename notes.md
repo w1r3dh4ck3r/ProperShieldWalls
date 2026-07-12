@@ -84,7 +84,22 @@ Settings.cs                     ← new MCM settings (EngagementDistance, MinAge
 
 ## 2026-07-09/10 — v2.0.0: othismos stripped, cramped-melee shipped (awaiting in-game validation)
 
-<<<<<<< HEAD
+**Open risk:**
+- `unit.SetTargetPosition(unit.GetWorldPosition().AsVec2)` in SlotLockPatch.cs — method may be internal; remove if compile fails
+- `HumanAIComponent.ParallelUpdateFormationMovement` / `ShouldCatchUpWithFormation` — verify names match installed version via ILSpy before adding the slot enforcement postfix
+
+---
+
+## 2026-06-03 — Status check, no changes
+
+**What changed:** Nothing — session was a status review only. Repo clean and up to date with origin/master.
+
+**Current state:** POC code committed, waiting on PC build and test. Next steps unchanged from 2026-05-27 handoff above.
+
+> **(Superseded.)** The open risks in the block above concern `SlotLockPatch.cs` and
+> `ParallelUpdateFormationMovement` — both part of the othismos system, which the 2026-07-09 v2
+> rewrite **deleted**. Kept as history only; do not act on them.
+
 **Branch `feat/cramped-melee-v2`, 13 commits, unmerged. Deployed to the live game; NOT yet validated in-game.**
 
 ### What the mod is now
@@ -692,16 +707,3 @@ that master held the dead othismos source (`OthismosState.cs` + a junk `D:` tree
 a broken DLL. Master now builds clean, 38/38 tests pass. **A build still does not deploy** — use
 `bl-deploy ProperShieldWalls bin/Release/ProperShieldWalls.dll`. (The `Deployed ProperShieldWalls to:` line a build
 prints copies **SubModule.xml only**, never the DLL — alarming message, harmless behaviour.)
-=======
-**Open risk:**
-- `unit.SetTargetPosition(unit.GetWorldPosition().AsVec2)` in SlotLockPatch.cs — method may be internal; remove if compile fails
-- `HumanAIComponent.ParallelUpdateFormationMovement` / `ShouldCatchUpWithFormation` — verify names match installed version via ILSpy before adding the slot enforcement postfix
-
----
-
-## 2026-06-03 — Status check, no changes
-
-**What changed:** Nothing — session was a status review only. Repo clean and up to date with origin/master.
-
-**Current state:** POC code committed, waiting on PC build and test. Next steps unchanged from 2026-05-27 handoff above.
->>>>>>> origin/master
