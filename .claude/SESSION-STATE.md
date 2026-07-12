@@ -56,3 +56,5 @@ Only if the in-game test finds something. `Behaviours/ShieldRotationBehavior.cs`
 - Javelin-melee breakage: root-caused, NOT urgent — memory `javelin-melee-breakage.md`.
 - A build no longer deploys. Use `bl-deploy ProperShieldWalls bin/Release/ProperShieldWalls.dll`.
 - Branch `feat/cramped-melee-v2` is still UNMERGED and is now **8 commits ahead of origin**.
+
+<!-- session-state-sync: last written by session 1566b843 at 2026-07-12 11:14:09 -0300 -->
