@@ -119,6 +119,7 @@
     <!-- Behaviours -->
     <Compile Include="Behaviours\CrowdStateBehavior.cs" />
     <Compile Include="Behaviours\AttackGateComponent.cs" />
+    <Compile Include="Behaviours\ShieldRotationBehavior.cs" />
     <!-- Patches -->
     <Compile Include="Patches\WindupTransparencyPatch.cs" />
     <Compile Include="Patches\FriendlyBlockPassthroughPatch.cs" />

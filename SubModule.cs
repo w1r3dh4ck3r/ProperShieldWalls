@@ -48,6 +48,7 @@ namespace ProperShieldWalls
         {
             base.OnMissionBehaviorInitialize(mission);
             mission.AddMissionBehavior(new CrowdStateBehavior());
+            mission.AddMissionBehavior(new ShieldRotationBehavior());
         }
 
         protected override void OnBeforeInitialModuleScreenSetAsRoot()
