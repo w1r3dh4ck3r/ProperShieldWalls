@@ -199,23 +199,25 @@ namespace ProperShieldWalls
             var swaps = new List<Swap>();
             if (hasShield == null) return swaps;
 
-            // Stable partition by selection: `next` is the lowest rank not yet holding a shielded
-            // man. Walk front-to-back; each shielded man found below `next` is swapped up into it.
-            // One swap per misplaced shielded man — the minimum possible.
+            // Planning mirrors each swap as it goes, so that `next` keeps meaning "lowest slot not
+            // yet holding a shield" across the whole walk — without that, a file with several gaps
+            // plans nonsense. Mirror on a COPY: the caller's array is not ours to mutate.
+            var state = (bool[])hasShield.Clone();
+
+            // Partition by selection: walk front-to-back; every shielded man found below `next` is
+            // swapped up into it. One swap per misplaced shielded man — the minimum possible.
             int next = 0;
-            for (int i = 0; i < hasShield.Length; i++)
+            for (int i = 0; i < state.Length; i++)
             {
-                if (!hasShield[i]) continue;
+                if (!state[i]) continue;
 
                 if (i != next)
                 {
                     swaps.Add(new Swap(next, i));
 
-                    // Mirror the swap locally so `next` keeps meaning "lowest free slot" for the
-                    // rest of the walk. Without this, a file with several gaps plans nonsense.
-                    bool tmp = hasShield[next];
-                    hasShield[next] = hasShield[i];
-                    hasShield[i] = tmp;
+                    bool tmp = state[next];
+                    state[next] = state[i];
+                    state[i] = tmp;
                 }
 
                 next++;
@@ -226,8 +228,6 @@ namespace ProperShieldWalls
     }
 }
 ```
-
-> **NOTE:** `PlanFileSwaps` mutates the array it is given. That is intentional and load-bearing (the mirror above). The caller in Task 3 passes a throwaway array built for the purpose, and the test helper clones before applying. Do not "fix" this by copying internally — the mirror is what makes multi-gap files plan correctly.
 
 - [ ] **Step 4: Run the tests to verify they PASS**
 
@@ -531,8 +531,6 @@ namespace ProperShieldWalls.Behaviours
             for (int i = 0; i < _column.Count; i++)
                 hasShield[i] = _column[i].HasShieldCached;
 
-            // PlanFileSwaps mutates `hasShield` (it mirrors each swap so it can keep planning).
-            // That is fine: the array is built here purely to be consumed.
             List<ShieldRotation.Swap> plan = ShieldRotation.PlanFileSwaps(hasShield);
 
             foreach (ShieldRotation.Swap swap in plan)
