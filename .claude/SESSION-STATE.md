@@ -1,26 +1,38 @@
 # Session State — ProperShieldWalls
 
 ## Current Task
-**Shield rotation is BUILT, REVIEWED, GEMINI-CLEARED and DEPLOYED. The only thing left is Mark's in-game test.**
+**Shield rotation WORKS, but fired in only 2 of 6 missions. Diagnosing why. Instrumented build deployed.**
 
-Live DLL: `feat/cramped-melee-v2@658f665` (sha `1668f93a`, verified at destination, `deployed.json` truthful).
-38/38 tests pass. Harmony patch count UNCHANGED at 2 — this feature adds none.
+Live DLL: `feat/cramped-melee-v2@c5b9adf` (sha `91f5338a`, verified). 38/38 tests. Patch count still 2.
 
-## Last Action
-Ran the full kickoff cycle: brainstorm → spec (`f73d62a`) → plan (`5ea4ab8`) → 3 subagent-implemented tasks with
-review after each → blocking `gemini-review` (3 rounds, ended **NO BLOCKING ISSUES**) → deploy.
+## The open question (this IS the task)
+6 missions ran on the rotation build. **2 worked**: 379 swaps / 1766 formation-sweeps, and 334 / 840 — with
+**0 skipped as detached in both**, which empirically KILLS the detachment risk (melee does not detach men).
+Mark also SAW the shuffle in-game and says the battles feel good.
 
-## Next Step — MARK AT THE KEYBOARD (this is the gate)
-Custom Battle, infantry only, ~30v30, `Diagnostic Logging` already ON.
-1. **ShieldWall.** Let the front rank's shields break (javelins help). Do shieldless men get pulled back and
-   replaced by shielded men?
-2. **Square.** Same fight. Do shields end up on the OUTER RING, shieldless in the interior?
-3. Then read `/mnt/c/Users/w1r3d/Documents/Mount and Blade II Bannerlord/PSW_diag.log`, newest mission report:
-   - `config: ... rotate=1 rotInterval=0.5` — the setting took (if `rotate=0`, the MCM key did not load)
-   - `shield rotation : N swaps across M formation-sweeps (K shieldless front-rankers seen, D skipped as detached)`
-   - `N > 0` = the feature fired. `<-- FEATURE NEVER FIRED` + a **large D** = melee detaches men from the
-     formation, so every swap candidate is being skipped. That is a KNOWN RISK, not a bug in the sweep — the
-     `skipped as detached` counter exists precisely to tell those two apart.
+**4 missions logged `0 swaps across 0 formation-sweeps`** — no formation ever passed the `formation.Interval <= 0f`
+gate. Mark confirms he ordered **both Shield Wall and Square** in those battles, so this is a REAL bug, not
+"he never formed up".
+
+Three worlds all print an identical `0/0`, and the old report could not separate them:
+1. no formation was actually in ShieldWall/Square (spacing never reached 0);
+2. formations WERE in those orders but `Interval` was not 0;
+3. `Sweep()` threw on its first tick — the catch routes to `Debug.Print`, which **nothing here captures**.
+
+**RULED OUT from the decompile — do not re-chase:** `Formation.Interval` takes a cavalry branch when
+`CalculateHasSignificantNumberOfMounted`, and `CavalryInterval(0) = 0.18f`, NOT 0 — so a *mounted* shield wall is
+skipped by our gate. That is CORRECT, not the bug: vanilla's rotation uses the same `Interval`, so it still runs
+there and we rightly defer to it.
+
+## Next Step — MARK AT THE KEYBOARD
+Run ONE battle, order **Shield Wall** (a Square too if convenient). Then I read `PSW_diag.log`.
+The report now carries a **formation census** (every formation seen: arrangement order, unit spacing, computed
+interval, whether it passed the gate) plus `errors caught: N   <-- SWEEP IS THROWING`. That separates all three
+worlds in a single run, with no guessing:
+- `ShieldWall spacing=0 interval=0.000 eligible=1` but 0 swaps → gate is fine; the swap logic isn't firing.
+- `ShieldWall spacing=2 interval=0.760 eligible=0`             → world 2: spacing is not what we assumed.
+- `(no formations seen at all)`                                → world 3, or the behaviour is dead.
+- `errors caught: N` > 0                                       → world 3, confirmed.
 
 **PRIMARY RISK, only a battle can answer it:** at `Interval == 0` men stand shoulder-to-shoulder, so two men
 trading slots must physically walk past each other mid-melee. They may shove/clip/jitter. This may be exactly WHY
