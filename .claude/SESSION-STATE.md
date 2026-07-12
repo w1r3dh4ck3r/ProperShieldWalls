@@ -50,6 +50,18 @@ almost certainly a transient mid-transition state while an order is being applie
 vanilla's hole *wherever the hole actually is* — and vanilla's rotation is equally dead in ANY formation at
 spacing 0. This is the robust gate paying off. **Do not "fix" it by hard-coding ShieldWall/Square.**
 
+## PERF SWEEP IN FLIGHT (2026-07-12) — read this before touching configs
+Mark is running a **clean perf run** right now. State deliberately set (game was CLOSED; MCM clobbers on exit):
+- `MapEventNullFix` perf flags **ON**: `EnablePerformanceProfiling`, `EnableMissionBehaviorTiming`,
+  `EnableHarmonyPatchAttribution`, `EnablePerfScopeLog`, `EnableMemoryTracker`. All are `RequireRestart=true`,
+  so they only bind after a full game restart. Output -> `Documents/.../PerfScope<YYYYMMDD>.log`.
+- **`ProperShieldWalls.DiagnosticLogging` = false** for this run — its per-hit lines are synchronous main-thread
+  file IO (the pattern that stalled SpearPreferenceFork), i.e. the instrument would sit inside the measurement.
+  **So an EMPTY `PSW_diag.log` after this battle is EXPECTED, not a failure.** `ShieldRotation` itself stays ON.
+- Backups of both JSONs: scratchpad `cfg-backup/`.
+- **AFTERWARDS: turn the 5 perf flags back OFF** (heavy/blunt by their own source comment) and DiagnosticLogging
+  back ON for the run-2 feature/Square test. The `bannerlord-perf-sweep` skill owns this whole loop.
+
 ## Next Step — GATE 2, the last one: Square has STILL never appeared in a census.
 Every census so far shows Line, ShieldWall and Skein — no schiltron. The perimeter behaviour is the one claim in
 this sprint still resting on a decompile argument rather than a number. Form a Square in one fight; the census
@@ -82,4 +94,4 @@ Only if the in-game test finds something. `Behaviours/ShieldRotationBehavior.cs`
 - A build no longer deploys. Use `bl-deploy ProperShieldWalls bin/Release/ProperShieldWalls.dll`.
 - Branch `feat/cramped-melee-v2` is still UNMERGED and is now **8 commits ahead of origin**.
 
-<!-- session-state-sync: last written by session 1566b843 at 2026-07-12 11:36:49 -0300 -->
+<!-- session-state-sync: last written by session 1566b843 at 2026-07-12 13:33:15 -0300 -->
