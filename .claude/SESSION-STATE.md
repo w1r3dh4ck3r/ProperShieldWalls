@@ -32,3 +32,5 @@ its own `config:` line, so runs need no manual tracking.
   `SpearPreferenceFork` (`73b60bc`, "behavior validated"). Do not re-open it here.
 - A build no longer deploys. Use `bl-deploy ProperShieldWalls bin/Release/ProperShieldWalls.dll`.
 - Branch `feat/cramped-melee-v2` is still UNMERGED.
+
+<!-- session-state-sync: last written by session 17771830 at 2026-07-11 21:05:01 -0300 -->
