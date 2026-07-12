@@ -143,9 +143,12 @@ changes a spacing, we track it automatically. (Do **not** hard-code the `Arrange
 2. **Skip** any agent with `file == -1 || rank == -1` (detached / unpositioned). This is our own detachment guard,
    replacing the one `LineFormation.SwitchUnitLocations` lacks.
 3. Bucket agents by `file`.
-4. Per file: **stable partition** — shielded men (`agent.HasShieldCached`) to the low ranks, shieldless to the high
-   ranks, preserving relative order within each group. Emit the swaps via
-   `formation.Arrangement.SwitchUnitLocations(a, b)` — the exact call vanilla's own loop makes.
+4. Per file: **partition** — shielded men (`agent.HasShieldCached`) to the low ranks, shieldless to the high ranks.
+   Emit the swaps via `formation.Arrangement.SwitchUnitLocations(a, b)` — the exact call vanilla's own loop makes.
+   Selection-partition: one swap per misplaced shielded man, which is the minimum. Relative order **among the
+   shielded** is preserved; the shieldless are not order-preserved among themselves (they are being pushed out of
+   the fighting rank — their internal ordering carries no meaning). An already-partitioned file emits **zero**
+   swaps, so a settled formation costs nothing and cannot churn.
 
 **Deliberate improvement over vanilla:** vanilla only ever swaps *adjacent* ranks, one pair per 0.5 s tick, so a
 shieldless man in rank 3 bubbles rearward over several seconds. A per-file partition replaces a shieldless
@@ -233,7 +236,10 @@ measure the timer, not the behaviour.
 1. Builds clean; existing 27 tests still pass.
 2. Unit-testable rotation core (the per-file partition) references **zero** TaleWorlds types, so the net8.0 xUnit
    project can source-link it — same pattern as `CrowdState` / `AttackRemap`. Tests cover: already-sorted file
-   (no swaps), fully-reversed file, all-shielded, none-shielded, single unit, detached (-1) units skipped.
+   (no swaps), shieldless-at-front, fully-reversed file, a shielded man deep in the file reaching the front in ONE
+   plan, all-shielded, none-shielded, single unit, empty, null, idempotency (re-planning a settled file emits
+   nothing), and minimal swap count. Skipping detached (`-1`) units is behaviour-level, not core-level — it is
+   verified by the `skipped as detached` counter in the mission report, not by a unit test.
 3. Deployed via `bl-deploy ProperShieldWalls bin/Release/ProperShieldWalls.dll` (a build no longer deploys).
 4. Main-menu banner still reads the correct patch count (this feature adds **no** patches — the count stays at 2).
 5. **In-game gate (Mark):** form a shield wall, let the front rank take shield damage until shields break, and watch
