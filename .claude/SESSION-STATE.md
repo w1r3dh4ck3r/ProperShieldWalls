@@ -94,4 +94,4 @@ Only if the in-game test finds something. `Behaviours/ShieldRotationBehavior.cs`
 - A build no longer deploys. Use `bl-deploy ProperShieldWalls bin/Release/ProperShieldWalls.dll`.
 - Branch `feat/cramped-melee-v2` is still UNMERGED and is now **8 commits ahead of origin**.
 
-<!-- session-state-sync: last written by session 1566b843 at 2026-07-12 13:33:15 -0300 -->
+<!-- session-state-sync: last written by session 1566b843 at 2026-07-12 14:05:42 -0300 -->
