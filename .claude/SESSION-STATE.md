@@ -1,97 +1,57 @@
 # Session State — ProperShieldWalls
 
 ## Current Task
-**SHIELD ROTATION IS VALIDATED IN SHIELD WALL. There was no bug. Only Square remains unproven.**
+**PSW IS DONE AND MERGED.** `feat/cramped-melee-v2` → `master` (`9fae4a1`, 50 commits). Master builds clean,
+38/38 tests pass. All four features in-game validated. Perf swept: PSW is **0.149% of frame cost**.
 
-Live DLL: `feat/cramped-melee-v2@c5b9adf` (sha `91f5338a`, verified). 38/38 tests. Patch count still 2.
+**NEXT SESSION IS NOT PSW — it is the frame eaters (Mark's call: "3 no doubt!").**
 
-## The "0 swaps" mystery — SOLVED, not a bug (2026-07-12)
-The formation census settled it in one battle. Verbatim:
-```
-mission 1:  Line         spacing=2 interval=0.760 eligible=0  x2112     <- ONLY Line, the whole mission
-            shield rotation : 0 swaps ...   <-- FEATURE NEVER FIRED
-mission 2:  Line         spacing=2 interval=0.760 eligible=0  x805
-            ShieldWall   spacing=0 interval=0.000 eligible=1  x263      <- eligible, exactly as predicted
-            shield rotation : 444 swaps across 263 formation-sweeps (0 skipped as detached)
-```
-No `errors caught:` line in either ⇒ the sweep never threw.
+## Next Step — #1: FIX THE FRAME EATERS (this is the job)
+A clean 300v300 perf sweep (attribution OFF, so these ms are trustworthy) found the modlist's real cost, and
+**none of it is ours**:
 
-**Conclusion: the gate and the sweep are CORRECT.** Whenever a ShieldWall formation exists it is eligible
-(`spacing=0 interval=0.000`) and the rotation fires on every single sweep. The earlier `0/0` missions simply had
-**no formation in ShieldWall/Square at all** — the census proves the formation sat in `Line` for the entire
-mission. Mark believed he had ordered Shield Wall; the arrangement was Line regardless. That is a question about
-the game's ORDER system (did the order take? did a Charge or an AI mod revert it?), **not** about this feature.
+| Owner | % of frame cost |
+|---|---|
+| **ArtemsCinematicCombat** (`CCShieldTauntTroopsData.OnMissionTick` 17.2% + `CinematicCombatMissionLogic` 4.5%) | **21.8%** |
+| **RBM `AgentStatusBar.UnitStatusMissionView.OnMissionTick`** — a UI status bar. Also the single worst hitch in BOTH runs (**56 ms**). Probably just a SETTING, not a code fix. | **13.2%** |
+| BetterPikes / StaminaSystem / BreakablePolearms | 3.5 / 2.6 / 1.3% |
+| ProperShieldWalls | 0.149% |
 
-Mark also visually confirmed the shuffle working in-game, and `skipped as detached` is **0** across every sweep
-ever recorded (2606 + 263) — the detachment risk is empirically dead, and men trading places at zero spacing does
-NOT look wrong. Both of the sprint's two standing risks are now closed by data.
+**Two mods eat 35% of Mark's frame time.** Start with `RBM AgentStatusBar` — a status-bar UI costing 13% and
+throwing 56 ms hitches smells like a toggle. Use the **`bannerlord-perf-sweep`** skill; it owns the whole loop
+(enable → battle → evaluate → **turn the flags back off**) and already records these findings.
 
-## GATE 1 — CHURN: **PASSED, DISPROVEN BY DATA** (300v300, 2026-07-12). Live DLL `feat/cramped-melee-v2@e2cd488`.
-```
-mission 1:  churn check: 88 of 443 sweeps emitted swaps (20%, max 38 in one sweep)
-mission 2:  churn check:  7 of 209 sweeps emitted swaps ( 3%, max 15)
-mission 3:  churn check: 213 of 727 sweeps emitted swaps (29%, max 19)
-```
-**71–97% of sweeps emit ZERO swaps — the formation SETTLES.** The pattern is bursty (a big re-sort when a volley
-of shields breaks or a chunk of the line dies, then silence), which is legitimate work, not churn. The
-`<-- CHURNING?` warning trips above 50% and was never close. At 300v300 with 17,498 friendly hits in one mission
-Mark reported no stall (he caught SpearPreferenceFork's 2 Hz stall immediately, so he is a reliable detector).
-**The main-thread cost concern is dead. Do not re-open it.**
+## Then — #2: memory long-battle capture
+**INCONCLUSIVE, NOT CLEAN.** 52 samples over one 4.3-min battle captured exactly ONE GC cycle: 273.8 → 287.5 MB,
+GC drops 48.5 MB to 238.9, then the floor rises monotonically back to 274.0 and the battle ended. A rising floor
+WITHIN a cycle is normal; ACROSS cycles it is a leak. **One cycle cannot tell them apart.** Needs a LONG battle
+(or several back-to-back) for a second peak/floor pair. No 50 MB spikes fired. This is the only open item touching
+Mark's "a leak is a bug to find, never a reason to play shorter" rule — do not call it clean.
 
-## UNEXPECTED FINDING (benign, but know it)
-The census caught formations that are NOT ShieldWall/Square sitting at spacing 0:
-```
-Skein  spacing=0 interval=0.000 eligible=1  x27
-Line   spacing=0 interval=0.000 eligible=1  x13
-```
-`ArrangementOrder.GetUnitSpacingOf` returns **2** for both Line and Skein, yet `UnitSpacing` briefly reads 0 —
-almost certainly a transient mid-transition state while an order is being applied. Short-lived (6–13 s).
-**The feature did the right thing anyway:** the gate is `Interval <= 0`, NOT a hard-coded enum list, so it fills
-vanilla's hole *wherever the hole actually is* — and vanilla's rotation is equally dead in ANY formation at
-spacing 0. This is the robust gate paying off. **Do not "fix" it by hard-coding ShieldWall/Square.**
-
-## PERF SWEEP IN FLIGHT (2026-07-12) — read this before touching configs
-Mark is running a **clean perf run** right now. State deliberately set (game was CLOSED; MCM clobbers on exit):
-- `MapEventNullFix` perf flags **ON**: `EnablePerformanceProfiling`, `EnableMissionBehaviorTiming`,
-  `EnableHarmonyPatchAttribution`, `EnablePerfScopeLog`, `EnableMemoryTracker`. All are `RequireRestart=true`,
-  so they only bind after a full game restart. Output -> `Documents/.../PerfScope<YYYYMMDD>.log`.
-- **`ProperShieldWalls.DiagnosticLogging` = false** for this run — its per-hit lines are synchronous main-thread
-  file IO (the pattern that stalled SpearPreferenceFork), i.e. the instrument would sit inside the measurement.
-  **So an EMPTY `PSW_diag.log` after this battle is EXPECTED, not a failure.** `ShieldRotation` itself stays ON.
-- Backups of both JSONs: scratchpad `cfg-backup/`.
-- **AFTERWARDS: turn the 5 perf flags back OFF** (heavy/blunt by their own source comment) and DiagnosticLogging
-  back ON for the run-2 feature/Square test. The `bannerlord-perf-sweep` skill owns this whole loop.
-
-## Next Step — GATE 2, the last one: Square has STILL never appeared in a census.
-Every census so far shows Line, ShieldWall and Skein — no schiltron. The perimeter behaviour is the one claim in
-this sprint still resting on a decompile argument rather than a number. Form a Square in one fight; the census
-will print `Square spacing=0 interval=0.000 eligible=1` with real swap counts.
-
-After that: `feat/cramped-melee-v2` (14+ commits) is ready to MERGE to `master`.
-**Do not build from `master`** until then — it still holds the old othismos source.
-
-Optional, if Mark cares WHY his Shield Wall orders sometimes read as `Line`: log arrangement-order CHANGES per
-formation. A value-of-feature question, not a correctness one.
+## Then — #3: the Square census (the last PSW gap)
+Square has **never appeared in a diagnostic census**. Its rank-means-perimeter geometry is decompile-verified but
+never seen in-game. Same code path as ShieldWall, so risk is low. `DiagnosticLogging` is back ON — the next battle
+with a Square captures it automatically. Look for `Square spacing=0 interval=0.000 eligible=1` + a swap count.
 
 ## Files to touch next
-Only if the in-game test finds something. `Behaviours/ShieldRotationBehavior.cs` is the sweep;
-`ShieldRotation.cs` is the pure planner (38 tests); `Settings.cs` / `Diagnostics.cs` hold the toggles + report.
+Not in this repo. The work is in the frame-eater mods (`ArtemsCinematicCombat`, RBM/`RBMFork`) and their MCM
+settings. PSW itself needs nothing.
 
 ## Notes
-- **The find of this sprint:** vanilla ALREADY wrote shield rotation and wired it into both ShieldWall and Square —
-  then gated it behind `if (Interval <= 0f) return;`, and `ArrangementOrder.GetUnitSpacingOf` returns **0** for both
-  of those orders. `Interval = 0.38 × 0 = 0`. **It has never run for anyone, in any playthrough.** Not a mod
-  conflict (all 85 enabled mods scanned, none touch the path).
-- Square is `RectilinearSchiltronFormation : SquareFormation : LineFormation`, where `fileIndex` picks the SIDE and
-  `rankIndex` walks INWARD — so the single rule "shielded men belong at low rank" yields shields-to-the-front in a
-  wall AND shields-on-the-perimeter in a square, with no square-specific code.
-- **Combat work is DONE and validated** (Mark: *"feels good, the units fight correctly and use their spears"*).
-  **Do not touch `WindupTransparencyPatch.Classify` / the `live-arc` guard / `WindupThreshold`.** Mark's ruling: the
-  constraint is a FEATURE — "allies in a shield wall are defensive and should not also be super strong on the attack."
-- Gemini's round-1 Critical (a stale-snapshot race) was **REFUTED from the decompile** — do not re-open it.
-  `ReconstructUnitsFromUnits2D` rebuilds only the flat `_allUnits` list and assigns no rank/file indices.
-- Javelin-melee breakage: root-caused, NOT urgent — memory `javelin-melee-breakage.md`.
-- A build no longer deploys. Use `bl-deploy ProperShieldWalls bin/Release/ProperShieldWalls.dll`.
-- Branch `feat/cramped-melee-v2` is still UNMERGED and is now **8 commits ahead of origin**.
-
-<!-- session-state-sync: last written by session 1566b843 at 2026-07-12 14:32:22 -0300 -->
+- **PARKED, needs an A/B:** `RTSCamera.CommandSystem` calls `Formation.get_CalculateHasSignificantNumberOfMounted`
+  **213,684,301×** per battle (~1.19 M/sec). Its true cost is **UNMEASURABLE** the way we measured: with attribution
+  OFF there is no per-patch table, and the prefix runs inside vanilla `Formation.Tick`, so its cost is billed to the
+  ENGINE, not to RTSCamera's owner total (0.26%). **0.26% is NOT an acquittal.** Run 1's 330,000 ms is INFLATED by
+  the attribution stopwatch — **the call count is real, the ms is not.** Only disabling the mod for one battle prices it.
+- Two profiler defects were FIXED + deployed in MapEventNullFix this session (`a12b9b8`, `0f81910`, branch `main`):
+  the report **left-truncated** the Method column (which is why the 213M-call entry had no owner), and `MemoryTracker`
+  only hooked `Campaign.DailyTick`, which never fires mid-mission ⇒ ZERO battle memory data.
+- **New MCM keys must be hand-written into the live JSON** or they read as `0`/`false` while looking perfect in source.
+  `MemorySampleIntervalSeconds` hit this exact trap this session.
+- **Check "is Bannerlord running" with `tasklist.exe`, NEVER `pgrep`** — `pgrep -f Bannerlord` matches its own command
+  line and returns a false positive. Burned a turn on this.
+- A build does not deploy. Use `bl-deploy`. The `Deployed ProperShieldWalls to:` line a build prints copies
+  **SubModule.xml only**, never the DLL.
+- Gemini's round-1 "stale snapshot" Critical was **REFUTED from the decompile** — `ReconstructUnitsFromUnits2D`
+  rebuilds only the flat `_allUnits` list and assigns no rank/file indices. Do not re-open it.
+- Perf instruments are currently **OFF** and PSW `DiagnosticLogging` is **ON** (ready for the Square census).

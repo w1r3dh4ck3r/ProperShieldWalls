@@ -597,3 +597,97 @@ carrying the latest entry; the gate is the forcing function that makes you look 
 No mod code touched. Live DLL is still `feat/cramped-melee-v2@8d3153e` (hash-verified against `bin/Release`, contains
 `DescribeConfig`). `PSW_diag.log` still has **no `config:` line**, so no test battle has been run on the stamped build.
 **Still waiting on Mark's Test D: same fight at Windup Threshold 0.25 vs 0.60 — can the surrounded enemy finally die?**
+
+---
+
+## 2026-07-12 — shield rotation shipped, MERGED to master (`9fae4a1`); perf swept
+
+### The find of the sprint: vanilla's shield rotation has never run for anyone
+`LineFormation.SwitchFrontUnitTypesToFrontRows()` already pulls shielded men toward rank 0
+(`_isFrontUnitDelegate = PreferShieldedUnitsOnFront`, driven off a 0.5 s timer in `Formation.Tick`).
+It opens with **`if (Interval <= 0f) return;`** — and `ArrangementOrder.GetUnitSpacingOf` returns **0** for
+**both ShieldWall and Square**. `Interval = InfantryInterval(0) * IntervalMultiplier = 0.38 × 0 = 0`.
+Multiplying by `IntervalMultiplier` cannot rescue it (anything × 0 = 0), so **no arrangement subclass can either**.
+TaleWorlds wrote the behaviour, wired it into both formations, gave `SquareFormation` a permanently-pinned shield
+preference (its `UpdateFrontUnitTypeDelegate()` override is empty, so it never flips to the anti-cavalry bracer
+delegate) — and then gated the whole thing behind a condition **neither formation can ever satisfy**.
+Line/Circle (spacing 2 → Interval 0.76) work fine; we must not touch those.
+
+Ruled out by verification, do NOT re-chase:
+- **Mod suppression.** All 85 enabled mods scanned (`strings -a` AND `strings -el`; a .NET UTF-16 `#US` heap miss on
+  ASCII-only proves nothing). Zero reference `SwitchFrontUnitTypesToFrontRows` / `PreferShieldedUnitsOnFront`.
+  RBMFork + FrontlineModFork DO prefix `LineFormation.SwitchUnitLocations`, but both return `true` for a valid pair.
+- **Stale shield cache.** `Agent.HasShieldCached => Equipment.ContainsShield()` — a computed property with **no
+  backing field**. The name is a lie; it is fresh on every read.
+- **Detachment.** `Agent.IsDetachedFromFormation` is `_detachment != null`, and `_detachment` is an `IDetachment` —
+  the STANDING-POINT system (siege ladders/walls/engines). **Ordinary melee does NOT detach anyone.** Confirmed
+  empirically: `0 skipped as detached` across every sweep ever recorded.
+
+### One rule, both formations — no Square-specific code
+Square is `RectilinearSchiltronFormation : SquareFormation : LineFormation`. In `GetLocalPositionOfUnitAux`,
+`fileIndex` picks the SIDE and `rankIndex` walks **inward** from it (`MaxRank = (UnitCountOfOuterSide+1)/2`, i.e.
+capped at the centre). So **rank 0 = the outer ring**, and "shielded men belong at low rank" yields
+shields-to-the-front in a wall and shields-on-the-perimeter in a square, from the same loop.
+
+### What shipped
+`Behaviours/ShieldRotationBehavior.cs` + `ShieldRotation.cs` (TaleWorlds-free planner, 11 tests).
+**No Harmony patch, no reflection, no private access** — public API only (`Formation.Arrangement`,
+`IFormationArrangement.GetAllUnits/SwitchUnitLocations`, `Agent.GetFormationFileAndRankInfo`, `HasShieldCached`).
+Banner still reads **2 patches**. Gate is **`formation.Interval <= 0f`**, NOT a hard-coded `ArrangementOrderEnum`
+list — that choice paid off: the census caught `Line` and `Skein` transiently at spacing 0 (mid-order-transition),
+and the feature correctly filled vanilla's hole there too. **Do not "fix" it by hard-coding ShieldWall/Square.**
+
+### Validation (all four gates closed)
+- 38 unit tests. Gemini adversarial review **cleared** after 3 rounds.
+- **In-game (Mark):** saw the shuffle; battles feel good. 713+ swaps, `0 skipped as detached`.
+- **Churn DISPROVEN:** 88/443 (20%), 7/209 (3%), 213/727 (29%) of formation-sweeps emitted swaps ⇒ **71–97% of
+  sweeps do nothing.** The formation SETTLES; the pattern is bursty (max 38 swaps in one sweep = a real re-sort
+  after casualties), not a 2 Hz treadmill.
+- **Perf, clean run (attribution OFF), 300v300:** `ShieldRotationBehavior` = **27.49 ms = 0.149% of frame cost**,
+  rank 14/23, worst tick 1.17 ms, never breached the 5 ms slow flag.
+
+### Gemini's round-1 Critical was WRONG — refuted from the decompile, do not re-open
+It claimed `ReconstructUnitsFromUnits2D` invalidates every agent's rank, making the per-file snapshot go stale
+mid-sweep. False: that method (LineFormation.cs:1026-1051) rebuilds ONLY the flat `_allUnits` list and performs
+**zero** `FormationRank/FileIndex` assignments; `SwitchUnitLocations` (:2163-2166) writes rank/file on **only the
+two units passed in**. Gemini accepted the refutation. Its round-2 finding (a dead agent at swap time) was guarded
+anyway (cheap; RBMFork and FrontlineModFork both guard the same call).
+
+### Perf sweep — the frame eaters are NOT us (new `bannerlord-perf-sweep` skill owns this loop)
+| Owner | % of frame |
+|---|---|
+| **ArtemsCinematicCombat** | **21.8%** |
+| **RBM `AgentStatusBar`** (a UI status bar; also the worst single hitch, 56 ms) | **13.2%** |
+| BetterPikes / StaminaSystem / BreakablePolearms | 3.5 / 2.6 / 1.3% |
+| ProperShieldWalls | **0.149%** |
+
+Two profiler defects found and FIXED in MapEventNullFix (`a12b9b8`, `0f81910`, deployed):
+the report **left-truncated** the Method column, silently eating mod names (the 213M-call entry was
+unattributable because of it); and `MemoryTracker` only hooked `Campaign.DailyTick`, which **never fires
+mid-mission**, so it produced ZERO battle memory data.
+
+- **RTSCamera.CommandSystem** calls `Formation.get_CalculateHasSignificantNumberOfMounted` **213,684,301×**
+  (~1.19 M/sec) — it both patches that getter and is its heaviest caller (recomputes formation geometry every tick
+  for a fact that only changes on casualties/riding-order changes). **Its true cost is UNMEASURABLE this way:** with
+  attribution off there is no per-patch table, and the prefix runs inside vanilla `Formation.Tick`, so its cost is
+  billed to the engine, NOT to RTSCamera's owner total (0.26%). **0.26% is NOT an acquittal.** Only an A/B (disable
+  the mod, same battle) can price it. The 330,000 ms from run 1 is INFLATED by the attribution stopwatch — the CALL
+  COUNT is real, the ms is not.
+- **MEMORY: INCONCLUSIVE, not clean.** 52 samples over one 4.3-min battle captured exactly ONE GC cycle
+  (273.8 → 287.5 MB, GC drops 48.5 MB to 238.9, then the floor rises monotonically back to 274.0 and the battle
+  ended). A rising floor WITHIN a cycle is normal; ACROSS cycles it is a leak. **One cycle cannot tell them apart.**
+  Needs a LONG battle (or several back-to-back) for a second peak/floor pair. No 50 MB spikes fired.
+
+### Next session (Mark's call, in order)
+1. **Fix the frame eaters** — ArtemsCinematicCombat (21.8%) and RBM `AgentStatusBar` (13.2%). The status bar is
+   probably just a setting. Biggest available win, and nothing to do with PSW.
+2. **Memory long-battle capture** — the only open item touching the "leaks are bugs, never a usage limit" rule.
+3. **Square census** — the one PSW claim still resting on a decompile argument. `DiagnosticLogging` is back ON, so
+   the next battle with a Square captures it automatically.
+
+### Housekeeping
+`feat/cramped-melee-v2` **MERGED to master** (`9fae4a1`, 50 commits) — this also killed the long-standing hazard
+that master held the dead othismos source (`OthismosState.cs` + a junk `D:` tree), so a build from master produced
+a broken DLL. Master now builds clean, 38/38 tests pass. **A build still does not deploy** — use
+`bl-deploy ProperShieldWalls bin/Release/ProperShieldWalls.dll`. (The `Deployed ProperShieldWalls to:` line a build
+prints copies **SubModule.xml only**, never the DLL — alarming message, harmless behaviour.)
