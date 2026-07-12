@@ -21,7 +21,8 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>$(GameFolder)\Modules\$(ModuleName)\bin\Win64_Shipping_Client\</OutputPath>
+    <!-- Build never writes into the live game folder. Deploy is a separate cp. See Directory.Build.targets. -->
+    <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -30,7 +31,8 @@
     <PlatformTarget>x64</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>$(GameFolder)\Modules\$(ModuleName)\bin\Win64_Shipping_Client\</OutputPath>
+    <!-- Build never writes into the live game folder. Deploy is a separate cp. See Directory.Build.targets. -->
+    <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -90,6 +92,10 @@
       <HintPath>$(GameFolder)\bin\Win64_Shipping_Client\TaleWorlds.MountAndBlade.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="TaleWorlds.MountAndBlade.View">
+      <HintPath>$(GameFolder)\Modules\Native\bin\Win64_Shipping_Client\TaleWorlds.MountAndBlade.View.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="TaleWorlds.ObjectSystem">
       <HintPath>$(GameFolder)\bin\Win64_Shipping_Client\TaleWorlds.ObjectSystem.dll</HintPath>
       <Private>False</Private>
@@ -104,27 +110,20 @@
   <ItemGroup>
     <!-- Entry point -->
     <Compile Include="SubModule.cs" />
-    <Compile Include="StaminaReader.cs" />
     <Compile Include="Settings.cs" />
-    <Compile Include="OthismosState.cs" />
-    <!-- Models -->
-    <Compile Include="Models\EngagementPair.cs" />
-    <Compile Include="Models\AgentSlot.cs" />
+    <Compile Include="Diagnostics.cs" />
+    <!-- Pure logic (also compiled by ProperShieldWalls.Tests) -->
+    <Compile Include="CrowdState.cs" />
+    <Compile Include="AttackRemap.cs" />
+    <Compile Include="ShieldRotation.cs" />
     <!-- Behaviours -->
-    <Compile Include="Behaviours\OthismosBehaviour.cs" />
-    <Compile Include="Behaviours\EngagementDetector.cs" />
-    <Compile Include="Behaviours\LockStateManager.cs" />
-    <Compile Include="Behaviours\SlotEnforcer.cs" />
-    <Compile Include="Behaviours\StabForcer.cs" />
-    <Compile Include="Behaviours\PressureResolver.cs" />
+    <Compile Include="Behaviours\CrowdStateBehavior.cs" />
+    <Compile Include="Behaviours\AttackGateComponent.cs" />
+    <Compile Include="Behaviours\ShieldRotationBehavior.cs" />
     <!-- Patches -->
-    <Compile Include="Patches\SlotLockPatch.cs" />
-    <Compile Include="Patches\AgentAIPatch.cs" />
-    <Compile Include="Patches\MeleeHitCallbackPatch.cs" />
-    <Compile Include="Patches\FriendlyFireCheckPatch.cs" />
-    <Compile Include="Patches\DecideCollisionReactionPatch.cs" />
-    <Compile Include="Patches\RegisterBlowPatch.cs" />
-    <Compile Include="Patches\ShieldDamagePatch.cs" />
+    <Compile Include="Patches\WindupTransparencyPatch.cs" />
+    <Compile Include="Patches\FriendlyBlockPassthroughPatch.cs" />
+    <Compile Include="Patches\AttackGatePatches.cs" />
     <!-- Metadata -->
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

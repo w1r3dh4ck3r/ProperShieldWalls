@@ -5,13 +5,23 @@
     The props file handles FrameworkPathOverride and GameFolder; this file handles
     SDK-style reference resolution where $(ReferencePath) is insufficient.
   -->
-  <!-- Override OutputPath and ModuleDir on Linux to use forward slashes -->
-  <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
-    <OutputPath>$(GameFolder)/Modules/$(ModuleName)/bin/Win64_Shipping_Client/</OutputPath>
+  <!--
+    Build output stays INSIDE the repo. It is never written into the live game folder.
+
+    This used to point straight at $(GameFolder)/Modules/... which meant every build was also a
+    deploy — including a bare `dotnet build` run only to check that the code compiles. Building
+    from the wrong branch therefore silently overwrote the good deployed DLL, and nothing said so.
+
+    Deploy is now a separate, deliberate `cp` (see the bannerlord-mod-build skill), which is what
+    MapEventNullFix and StaminaSystemOptimized already do. ModuleDir still resolves the live folder
+    so the deploy step has a destination to copy to.
+  -->
+  <PropertyGroup Condition="'$(OS)' != 'Windows_NT' AND '$(MSBuildProjectName)' != 'ProperShieldWalls.Tests'">
+    <OutputPath>bin/$(Configuration)/</OutputPath>
     <ModuleDir>$(GameFolder)/Modules/$(ModuleName)</ModuleDir>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+  <ItemGroup Condition="'$(OS)' != 'Windows_NT' AND '$(MSBuildProjectName)' != 'ProperShieldWalls.Tests'">
     <Reference Update="TaleWorlds.Core">
       <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.Core.dll</HintPath>
     </Reference>
@@ -46,7 +56,7 @@
       <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.InputSystem.dll</HintPath>
     </Reference>
     <Reference Update="TaleWorlds.MountAndBlade.View">
-      <HintPath>$(GameFolder)/bin/Win64_Shipping_Client/TaleWorlds.MountAndBlade.View.dll</HintPath>
+      <HintPath>$(GameFolder)/Modules/Native/bin/Win64_Shipping_Client/TaleWorlds.MountAndBlade.View.dll</HintPath>
     </Reference>
     <Reference Update="SandBox">
       <HintPath>$(GameFolder)/Modules/SandBox/bin/Win64_Shipping_Client/SandBox.dll</HintPath>
