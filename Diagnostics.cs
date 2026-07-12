@@ -112,6 +112,7 @@ namespace ProperShieldWalls
             // Deliberately bypasses the per-hit line cap. The report is the whole point of the
             // instrument; a noisy battle must not be the reason it goes missing.
             Append("[PSW] ==== mission report ====");
+            Append("[PSW]  config: " + DescribeConfig());
             Append(string.Format(CultureInfo.InvariantCulture,
                 "[PSW]  windup transparency : {0} friendly hits made transparent{1}",
                 _windupBypassed, _windupBypassed == 0 ? "   <-- FEATURE NEVER FIRED" : ""));
@@ -129,6 +130,26 @@ namespace ProperShieldWalls
                 _remapEvents, _remappedAgents.Count, _remapTicks,
                 _remapEvents == 0 ? "   <-- FEATURE NEVER FIRED" : ""));
             Append("[PSW] ========================");
+        }
+
+        /// <summary>
+        /// The settings the mission actually ran under, stamped into its own report. Every toggle is
+        /// RequireRestart=false, so a test campaign flips them between missions into one appended
+        /// log; without this the numbers cannot be attributed to a configuration after the fact.
+        /// </summary>
+        private static string DescribeConfig()
+        {
+            var s = GlobalSettings<Settings>.Instance;
+            if (s == null) return "<unresolved>";
+
+            return string.Format(CultureInfo.InvariantCulture,
+                "enabled={0} windup={1} cramped={2} blockPass={3} threshold={4:0.00} crowdedDur={5:0.0}",
+                s.Enabled ? 1 : 0,
+                s.WindupTransparency ? 1 : 0,
+                s.CrampedAttackGating ? 1 : 0,
+                s.FriendlyBlockPassthrough ? 1 : 0,
+                s.WindupThreshold,
+                s.CrowdedDuration);
         }
 
         /// <summary>
