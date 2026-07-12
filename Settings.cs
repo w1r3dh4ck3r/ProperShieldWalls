@@ -31,6 +31,11 @@ namespace ProperShieldWalls
         [SettingPropertyGroup("General", GroupOrder = 0)]
         public bool FriendlyBlockPassthrough { get; set; } = true;
 
+        [SettingPropertyBool("Shield Rotation", Order = 4, RequireRestart = false,
+            HintText = "In a Shield Wall or Square, men who lose their shield are pulled back and a shielded man takes their place. Vanilla's own rotation is dead in these two formations (it is gated on unit spacing, which both define as zero).")]
+        [SettingPropertyGroup("General", GroupOrder = 0)]
+        public bool ShieldRotation { get; set; } = true;
+
         [SettingPropertyFloatingInteger("Windup Threshold", 0f, 0.6f, "#0.00",
             Order = 3, RequireRestart = false,
             HintText = "Attack progress (0-1) below which a friendly hit counts as wind-up. Higher = more of the swing passes through allies.")]
@@ -42,6 +47,12 @@ namespace ProperShieldWalls
             HintText = "Seconds an agent stays flagged as crowded after its wind-up clips a friendly.")]
         [SettingPropertyGroup("Tuning", GroupOrder = 1)]
         public float CrowdedDuration { get; set; } = 2f;
+
+        [SettingPropertyFloatingInteger("Rotation Interval", 0.1f, 2f, "#0.0",
+            Order = 5, RequireRestart = false,
+            HintText = "Seconds between shield-rotation sweeps. Vanilla's equivalent runs every 0.5s.")]
+        [SettingPropertyGroup("Tuning", GroupOrder = 1)]
+        public float RotationInterval { get; set; } = 0.5f;
 
         [SettingPropertyBool("Diagnostic Logging", Order = 0, RequireRestart = false,
             HintText = "Log every friendly hit: strike type, hit-result flags, attack progress. Use to tune Windup Threshold. Very noisy.")]

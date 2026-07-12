@@ -49,6 +49,12 @@ namespace ProperShieldWalls
         // --- Friendly block passthrough ---
         private static int _friendlyBlocksNeutralised;
 
+        // --- Shield rotation ---
+        private static int _rotationSwaps;
+        private static int _rotationShieldlessFront;
+        private static int _rotationFormations;
+        private static int _rotationSkippedDetached;
+
         internal static bool Enabled
         {
             get
@@ -69,6 +75,10 @@ namespace ProperShieldWalls
             _windupBypassed = 0;
             _windupRejects.Clear();
             _friendlyBlocksNeutralised = 0;
+            _rotationSwaps = 0;
+            _rotationShieldlessFront = 0;
+            _rotationFormations = 0;
+            _rotationSkippedDetached = 0;
         }
 
         /// <summary>Counted unconditionally: these are ints, and gating them on a settings read would cost more.</summary>
@@ -103,6 +113,32 @@ namespace ProperShieldWalls
             _friendlyBlocksNeutralised++;
         }
 
+        internal static void RecordShieldSwap()
+        {
+            _rotationSwaps++;
+        }
+
+        /// <summary>A man holding rank 0 (front rank / outer ring) with no shield — the thing we exist to fix.</summary>
+        internal static void RecordShieldlessFront()
+        {
+            _rotationShieldlessFront++;
+        }
+
+        /// <summary>
+        /// Counted separately because it is the feature's most likely silent failure: if melee detaches
+        /// men from their formation, every candidate is skipped and the result is indistinguishable from
+        /// "the feature never fired". This number tells the two apart.
+        /// </summary>
+        internal static void RecordRotationSkippedDetached()
+        {
+            _rotationSkippedDetached++;
+        }
+
+        internal static void RecordRotationFormation()
+        {
+            _rotationFormations++;
+        }
+
         /// <summary>
         /// One report per mission, per feature. This is the artefact that answers "is it working";
         /// the per-hit lines above it only explain WHY when a number looks wrong.
@@ -129,6 +165,10 @@ namespace ProperShieldWalls
                 "[PSW]  cramped gating (AI) : {0} swings remapped across {1} agents ({2} input ticks){3}",
                 _remapEvents, _remappedAgents.Count, _remapTicks,
                 _remapEvents == 0 ? "   <-- FEATURE NEVER FIRED" : ""));
+            Append(string.Format(CultureInfo.InvariantCulture,
+                "[PSW]  shield rotation     : {0} swaps across {1} formation-sweeps ({2} shieldless front-rankers seen, {3} skipped as detached){4}",
+                _rotationSwaps, _rotationFormations, _rotationShieldlessFront, _rotationSkippedDetached,
+                _rotationSwaps == 0 ? "   <-- FEATURE NEVER FIRED" : ""));
             Append("[PSW] ========================");
         }
 
@@ -143,13 +183,15 @@ namespace ProperShieldWalls
             if (s == null) return "<unresolved>";
 
             return string.Format(CultureInfo.InvariantCulture,
-                "enabled={0} windup={1} cramped={2} blockPass={3} threshold={4:0.00} crowdedDur={5:0.0}",
+                "enabled={0} windup={1} cramped={2} blockPass={3} threshold={4:0.00} crowdedDur={5:0.0} rotate={6} rotInterval={7:0.0}",
                 s.Enabled ? 1 : 0,
                 s.WindupTransparency ? 1 : 0,
                 s.CrampedAttackGating ? 1 : 0,
                 s.FriendlyBlockPassthrough ? 1 : 0,
                 s.WindupThreshold,
-                s.CrowdedDuration);
+                s.CrowdedDuration,
+                s.ShieldRotation ? 1 : 0,
+                s.RotationInterval);
         }
 
         /// <summary>
