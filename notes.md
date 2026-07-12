@@ -707,3 +707,41 @@ that master held the dead othismos source (`OthismosState.cs` + a junk `D:` tree
 a broken DLL. Master now builds clean, 38/38 tests pass. **A build still does not deploy** — use
 `bl-deploy ProperShieldWalls bin/Release/ProperShieldWalls.dll`. (The `Deployed ProperShieldWalls to:` line a build
 prints copies **SubModule.xml only**, never the DLL — alarming message, harmless behaviour.)
+
+---
+
+## 2026-07-12 (later) — no PSW code changed; the frame eaters got fixed instead
+
+PSW itself was **not touched**. It is done, merged (`9fae4a1`), and costs 0.149% of frame. This session executed
+the handoff's #1 item — the frame eaters — and the work lives in two OTHER repos.
+
+### Both frame eaters are fixed, deployed, and verified live — but NOT measured
+- **RBM AgentStatusBar, 13.2%** (and the worst hitch in both runs, 56 ms) → `RBMFork@720bdf0`.
+  `UnitStatusVM.RefreshAgentStatus` did a native `Agent.Position` read, a `MBWindowManager.WorldToScreen`
+  projection, and a `Distance` property-set for every agent every tick, **above** the visibility gate. Distance
+  changes every tick for anything moving, so the change-guard never suppressed the Gauntlet notification. Fixed by
+  hoisting the cheap predicates above the expensive ones. **Not a throttle** — no visible output changes.
+- **ArtemsCinematicCombat, 21.8%** → **new fork**, `~/AI/projects/ArtemsCinematicCombatFork` (`be78af9`, pushed
+  private). `CCShieldTauntTroopsData.OnMissionTick` allocated a fresh ~600-element list every frame and probed
+  membership with `List<Agent>.Contains` — **O(agents × shield-bearers) per frame**. Fixed with HashSet mirrors,
+  a backwards index prune, direct iteration, one native weapon read per agent.
+
+### The prior handoff's guess was wrong, twice — worth remembering
+It said the status bar was "**probably just a SETTING**". It is not: `RBMConfig` has no status-bar toggle at all,
+and `SubModule.cs:153` adds the view **unconditionally** while its three neighbours are gated. Likewise ACC's
+`AIShieldTaunt` setting does **not** gate `OnMissionTick` — that check runs *after* the expensive loop. **Two
+"just flip a setting" theories, both refuted by reading the code.** Neither would have bought a single frame.
+
+### Next session: read the sweep
+Mark is fighting a battle now. **The perf instruments are ARMED** in the live MCM JSON
+(`EnablePerformanceProfiling`, `EnableMissionBehaviorTiming` — the one that emits the per-mod owner table —
+`EnablePerfScopeLog`, `EnableMemoryTracker`; attribution deliberately OFF, since it inflates the ms). They were
+found **OFF**, which would have wasted the battle entirely. **Turn them back off after reading the results.**
+
+Also captured this session: **memory** (the ACC fix removes a major per-frame allocator, so re-measure the open
+leak question) and the **Square census** (`DiagnosticLogging` is ON; a Square in this battle is captured for free).
+
+### Unverified, do not assert
+Mark says he keeps the unit status bars off, but **no RBM setting maps to that** — the only hide path in code is
+`UnitStatusVM._keyToggled` (Ctrl+H; initialised `true`, so hidden until toggled). If hidden, the RBM fix should
+take that method to ~zero; if shown, the win is partial. The sweep settles it.
