@@ -1,41 +1,54 @@
 # Session State — ProperShieldWalls
 
 ## Current Task
-Feature-isolation test campaign. Battles 1–3 ran all three features at once, so no result was
-attributable to any single feature. Mark is now running one feature per mission.
+**New sprint: SHIELD ROTATION.** Spec written + committed (`f73d62a`):
+`docs/superpowers/specs/2026-07-12-shield-rotation-design.md`. Awaiting Mark's spec review, then `writing-plans`.
+
+**The find:** vanilla ALREADY rotates shieldless men out of the front rank
+(`LineFormation.SwitchFrontUnitTypesToFrontRows`, 0.5 s tick, `PreferShieldedUnitsOnFront`) — and it is
+**structurally dead in exactly ShieldWall and Square**, the only two orders that need it. It opens with
+`if (Interval <= 0f) return;`, and `ArrangementOrder.GetUnitSpacingOf` returns **0** for both ⇒
+`Interval = 0.38 × 0 = 0` ⇒ returns on line 1, forever. It has never run for anyone. Not a mod conflict:
+all 85 enabled mods scanned, none touch the path.
+
+**Why one loop does both:** Square is `RectilinearSchiltronFormation : SquareFormation : LineFormation`, where
+`fileIndex` picks the SIDE and `rankIndex` walks INWARD from it. So "shielded men belong at low rank" gives
+shields-to-the-front in a wall **and** shields-on-the-perimeter in a square. No square-specific code.
 
 ## Last Action
-Wrote `docs/06-TEST-PLAN.md` (Tests 0/A/B/C/D). Added a config stamp to the mission report
-(`Diagnostics.DescribeConfig`) so each run is self-labelling, then built + deployed:
-live DLL is `feat/cramped-melee-v2@8d3153e` (combat behaviour identical to `674147c`; diagnostics only).
+Wrote + committed the spec and the kickoff hook harness (`.claude/settings.json`, `scripts/`, `docs/agent/`).
+The agent docs encode the `[MBCallback]` rule, the diag log's two-population gotcha, and the MCM live-JSON trap —
+they auto-inject when the matching file is edited.
 
 ## Next Step
-**Waiting on Mark's in-game results — do not start coding.** The key run is **Test D**: `live-arc` reject is
-literally `AttackProgress >= WindupThreshold`, and `Windup Threshold` is an in-game slider (max 0.60). Running the
-same fight at 0.25 vs 0.60 answers complaint #2 (surrounded enemies unhittable) with NO code change.
-- 0.60 fixes it → make it the default / widen in code.
-- 0.60 helps but doesn't → the `live-arc` guard must be removed entirely (reverses the "ally in front still stops
-  the blade" ruling — Mark's call).
-- 0.60 changes nothing → wrong mechanism; go back to the collision data.
-
-When results land: read `Documents/Mount and Blade II Bannerlord/PSW_diag.log` — every mission report now carries
-its own `config:` line, so runs need no manual tracking.
+1. Mark reviews the spec.
+2. Then `superpowers:writing-plans` → implement `Behaviours/ShieldRotationBehavior.cs`.
+   **No Harmony patch, no reflection** — pure public API (`Formation.Arrangement`,
+   `IFormationArrangement.GetAllUnits/SwitchUnitLocations`, `Agent.GetFormationFileAndRankInfo`,
+   `Agent.HasShieldCached`). Banner patch count stays at **2**.
+3. Kickoff mandates a **blocking `gemini-review`** before the sprint can be called done.
 
 ## Files to touch next
-- `Patches/WindupTransparencyPatch.cs` — the `live-arc` guard is at `Classify()`, lines 106–111 (Test D outcome)
-- `Settings.cs` — `WindupThreshold` default/range (0f–0.6f) if the fix is a widened threshold
-- `docs/06-TEST-PLAN.md` — record results
-- `notes.md` — handoff entry
+- `Behaviours/ShieldRotationBehavior.cs` — NEW (the sweep; gate on `formation.Interval <= 0f`)
+- A TaleWorlds-free rotation core (per-file partition) so the net8.0 xUnit project can source-link it, like
+  `CrowdState`/`AttackRemap`
+- `Settings.cs` — `ShieldRotation` (bool, default on), `RotationInterval` (0.5 s). **Hand-write both keys into the
+  live MCM JSON** or they read as false in game.
+- `Diagnostics.cs` — add to `DescribeConfig` + a `shield rotation : N swaps` report line (+ `FEATURE NEVER FIRED`)
+- `SubModule.cs` — register the behaviour
 
 ## Notes
-- **If your first Bash/Edit was BLOCKED: that is the new handoff gate, working as designed.** Read
-  `.claude/SESSION-STATE.md` + `notes.md` with the Read tool and retry. Read/Grep/Glob are never gated.
-  Details in global CLAUDE.md → "The handoff gate is mechanical". Escape: `echo off > ~/.claude/hooks/handoff-gate.mode`.
-- **Nothing about PSW's code or the test campaign changed this session** — the deployed DLL is still
-  `feat/cramped-melee-v2@8d3153e` and Test D is still the open question. The gate work was infrastructure only.
-- Back-rank spear investigation (queued 2026-07-10) is **DONE** — it was solved in the sibling repo
-  `SpearPreferenceFork` (`73b60bc`, "behavior validated"). Do not re-open it here.
+- **Combat work is DONE and validated.** Mark: *"feels good, the units fight correctly and use their spears."*
+  **Do not touch `WindupTransparencyPatch.Classify` / the `live-arc` guard / `WindupThreshold`.** Mark's ruling:
+  the constraint is a FEATURE — "allies in a shield wall are defensive and should not also be super strong on the
+  attack." Test D is moot; do not run it.
+- **PRIMARY RISK, only a battle answers it:** at `Interval == 0` men are shoulder-to-shoulder, so two men trading
+  slots must physically walk past each other mid-melee. They may shove/clip/jitter. This may be *why* TaleWorlds
+  added the guard. Fallback: only rotate men not currently in contact.
+- Javelin-melee breakage: root-caused but NOT urgent — see memory `javelin-melee-breakage.md`. Nobody can melee
+  with javelins at all (SpearPreferenceFork clears `WeaponFlags.MeleeWeapon`), so the bug is unobservable. Mark
+  calls the current state "a half measure — acceptable for now."
 - A build no longer deploys. Use `bl-deploy ProperShieldWalls bin/Release/ProperShieldWalls.dll`.
 - Branch `feat/cramped-melee-v2` is still UNMERGED.
 
-<!-- session-state-sync: last written by session 9dbc0efa at 2026-07-12 08:28:48 -0300 -->
+<!-- session-state-sync: last written by session 1566b843 at 2026-07-12 10:07:55 -0300 -->
