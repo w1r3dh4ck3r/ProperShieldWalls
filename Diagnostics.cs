@@ -55,6 +55,8 @@ namespace ProperShieldWalls
         private static int _rotationFormations;
         private static int _rotationSkippedDetached;
         private static int _rotationErrors;
+        private static int _rotationSweepsWithSwaps;
+        private static int _rotationMaxSwapsInOneSweep;
 
         /// <summary>
         /// Keyed by a formatted (order, spacing, interval, eligible) string so distinct combinations
@@ -88,6 +90,8 @@ namespace ProperShieldWalls
             _rotationFormations = 0;
             _rotationSkippedDetached = 0;
             _rotationErrors = 0;
+            _rotationSweepsWithSwaps = 0;
+            _rotationMaxSwapsInOneSweep = 0;
             _formationCensus.Clear();
         }
 
@@ -156,6 +160,19 @@ namespace ProperShieldWalls
         }
 
         /// <summary>
+        /// Called once per formation per sweep with the total swaps that sweep performed. Discriminates
+        /// a settling formation (swaps taper to zero) from churn (the formation never stops swapping).
+        /// </summary>
+        internal static void RecordFormationSweepResult(int swapsThisSweep)
+        {
+            if (swapsThisSweep > 0)
+                _rotationSweepsWithSwaps++;
+
+            if (swapsThisSweep > _rotationMaxSwapsInOneSweep)
+                _rotationMaxSwapsInOneSweep = swapsThisSweep;
+        }
+
+        /// <summary>
         /// Every formation the sweep examines, whether or not it passes the eligibility gate — the
         /// point is to see what we SKIP. unitCount is deliberately excluded from the key: it changes
         /// as men die and would explode the dictionary, so it is not tracked at all.
@@ -201,6 +218,12 @@ namespace ProperShieldWalls
                 "[PSW]  shield rotation     : {0} swaps across {1} formation-sweeps ({2} shieldless front-rankers seen, {3} skipped as detached){4}",
                 _rotationSwaps, _rotationFormations, _rotationShieldlessFront, _rotationSkippedDetached,
                 _rotationSwaps == 0 ? "   <-- FEATURE NEVER FIRED" : ""));
+
+            bool churning = _rotationSweepsWithSwaps * 2 > _rotationFormations && _rotationFormations > 20;
+            Append(string.Format(CultureInfo.InvariantCulture,
+                "[PSW]      churn check: {0} of {1} formation-sweeps emitted swaps (max {2} in one sweep){3}",
+                _rotationSweepsWithSwaps, _rotationFormations, _rotationMaxSwapsInOneSweep,
+                churning ? "   <-- CHURNING? formation is not settling" : ""));
 
             if (_rotationErrors > 0)
                 Append(string.Format(CultureInfo.InvariantCulture,

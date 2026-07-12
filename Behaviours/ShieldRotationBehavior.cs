@@ -123,13 +123,16 @@ namespace ProperShieldWalls.Behaviours
 
             Diagnostics.RecordRotationFormation();
 
+            int swapsThisSweep = 0;
             foreach (var entry in _files)
-                RotateFile(arrangement, entry.Value);
+                swapsThisSweep += RotateFile(arrangement, entry.Value);
+
+            Diagnostics.RecordFormationSweepResult(swapsThisSweep);
         }
 
-        private void RotateFile(IFormationArrangement arrangement, List<Agent> unordered)
+        private int RotateFile(IFormationArrangement arrangement, List<Agent> unordered)
         {
-            if (unordered.Count < 2) return;
+            if (unordered.Count < 2) return 0;
 
             _column.Clear();
             _column.AddRange(unordered);
@@ -144,6 +147,7 @@ namespace ProperShieldWalls.Behaviours
 
             List<ShieldRotation.Swap> plan = ShieldRotation.PlanFileSwaps(hasShield);
 
+            int swapsPerformed = 0;
             foreach (ShieldRotation.Swap swap in plan)
             {
                 Agent a = _column[swap.A];
@@ -163,12 +167,15 @@ namespace ProperShieldWalls.Behaviours
 
                 arrangement.SwitchUnitLocations(a, b);
                 Diagnostics.RecordShieldSwap();
+                swapsPerformed++;
 
                 // Mirror the swap in our local view so later swaps in the same plan address the
                 // right agents — the plan's indices are slot positions, not agent identities.
                 _column[swap.A] = b;
                 _column[swap.B] = a;
             }
+
+            return swapsPerformed;
         }
 
         private static int CompareByRank(Agent left, Agent right)
