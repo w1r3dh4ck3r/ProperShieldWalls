@@ -26,36 +26,40 @@ Mark also visually confirmed the shuffle working in-game, and `skipped as detach
 ever recorded (2606 + 263) — the detachment risk is empirically dead, and men trading places at zero spacing does
 NOT look wrong. Both of the sprint's two standing risks are now closed by data.
 
-## Next Step — TWO GATES BEFORE MERGE (do not merge on the small-battle data)
+## GATE 1 — CHURN: **PASSED, DISPROVEN BY DATA** (300v300, 2026-07-12). Live DLL `feat/cramped-melee-v2@e2cd488`.
+```
+mission 1:  churn check: 88 of 443 sweeps emitted swaps (20%, max 38 in one sweep)
+mission 2:  churn check:  7 of 209 sweeps emitted swaps ( 3%, max 15)
+mission 3:  churn check: 213 of 727 sweeps emitted swaps (29%, max 19)
+```
+**71–97% of sweeps emit ZERO swaps — the formation SETTLES.** The pattern is bursty (a big re-sort when a volley
+of shields breaks or a chunk of the line dies, then silence), which is legitimate work, not churn. The
+`<-- CHURNING?` warning trips above 50% and was never close. At 300v300 with 17,498 friendly hits in one mission
+Mark reported no stall (he caught SpearPreferenceFork's 2 Hz stall immediately, so he is a reliable detector).
+**The main-thread cost concern is dead. Do not re-open it.**
 
-### GATE 1 (blocking) — churn + scale. Live DLL is `feat/cramped-melee-v2@e2cd488`.
-444 swaps across 263 sweeps in a TINY battle is ~1.7 swaps EVERY sweep, sustained. Totals cannot separate:
-  (a) legitimate — shields keep breaking and deaths re-pack the line, so re-sorting is real work; or
-  (b) CHURN — we swap, the game re-packs between sweeps, we swap back, forever at 2 Hz.
-(b) would be a permanent main-thread cost: every `SwitchUnitLocations` triggers a full
-`ReconstructUnitsFromUnits2D` grid rebuild. This is the exact shape of the 2x/sec stall `SpearPreferenceFork`
-already ate once. **Mark's standing directive makes this blocking: a cost that only bites at scale or duration is
-a bug to find, never something to wave off.**
+## UNEXPECTED FINDING (benign, but know it)
+The census caught formations that are NOT ShieldWall/Square sitting at spacing 0:
+```
+Skein  spacing=0 interval=0.000 eligible=1  x27
+Line   spacing=0 interval=0.000 eligible=1  x13
+```
+`ArrangementOrder.GetUnitSpacingOf` returns **2** for both Line and Skein, yet `UnitSpacing` briefly reads 0 —
+almost certainly a transient mid-transition state while an order is being applied. Short-lived (6–13 s).
+**The feature did the right thing anyway:** the gate is `Interval <= 0`, NOT a hard-coded enum list, so it fills
+vanilla's hole *wherever the hole actually is* — and vanilla's rotation is equally dead in ANY formation at
+spacing 0. This is the robust gate paying off. **Do not "fix" it by hard-coding ShieldWall/Square.**
 
-A `churn check:` line is now in every mission report:
-`churn check: X of Y formation-sweeps emitted swaps (max Z in one sweep)` + `<-- CHURNING? formation is not settling`
-when more than half of all sweeps still emit swaps.
+## Next Step — GATE 2, the last one: Square has STILL never appeared in a census.
+Every census so far shows Line, ShieldWall and Skein — no schiltron. The perimeter behaviour is the one claim in
+this sprint still resting on a decompile argument rather than a number. Form a Square in one fight; the census
+will print `Square spacing=0 interval=0.000 eligible=1` with real swap counts.
 
-Two runs settle it:
-1. **Static test:** form a shield wall, stand still, NO combat. Swaps should decay to ~0 (a settled formation emits
-   nothing). If a static formation keeps swapping → CHURN → fix it (suspect `HasShieldCached` flicker, or the game
-   re-packing between our sweeps).
-2. **Scale test:** one 500+/side, long battle. Watch frame time and the churn line.
-
-### GATE 2 — Square has still NEVER appeared in a census.
-The wall is proven; the schiltron's perimeter behaviour remains a code + decompile argument only. Form a Square
-once and the census will print `Square spacing=0 interval=0.000 eligible=1` with real swap counts.
-
-After BOTH gates: `feat/cramped-melee-v2` (13+ commits) is ready to MERGE to `master`.
+After that: `feat/cramped-melee-v2` (14+ commits) is ready to MERGE to `master`.
 **Do not build from `master`** until then — it still holds the old othismos source.
 
-Optional, if Mark cares WHY his Shield Wall orders keep reading as `Line`: log arrangement-order CHANGES per
-formation. That is a value-of-feature question, not a correctness one.
+Optional, if Mark cares WHY his Shield Wall orders sometimes read as `Line`: log arrangement-order CHANGES per
+formation. A value-of-feature question, not a correctness one.
 
 ## Files to touch next
 Only if the in-game test finds something. `Behaviours/ShieldRotationBehavior.cs` is the sweep;
@@ -78,4 +82,4 @@ Only if the in-game test finds something. `Behaviours/ShieldRotationBehavior.cs`
 - A build no longer deploys. Use `bl-deploy ProperShieldWalls bin/Release/ProperShieldWalls.dll`.
 - Branch `feat/cramped-melee-v2` is still UNMERGED and is now **8 commits ahead of origin**.
 
-<!-- session-state-sync: last written by session 1566b843 at 2026-07-12 11:21:15 -0300 -->
+<!-- session-state-sync: last written by session 1566b843 at 2026-07-12 11:36:49 -0300 -->
