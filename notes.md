@@ -555,3 +555,45 @@ bounce — a *partial* improvement means the guard has to be removed in code, wh
 
 ### Next
 Mark runs Tests 0/A/B/C/D. Results pending — no coding until they land.
+
+---
+
+## 2026-07-12 — the handoff is now enforced, not requested
+
+### What went wrong (the reason this exists)
+Session opened with `SESSION-STATE.md` already injected by the SessionStart hook, saying **"do not start
+coding"**. First action anyway: a Bash histogram of `reject:live-arc` prog values, reported as "N of 5233
+would flip at threshold X." That number was **meaningless** — per-hit log lines are the PLAYER's swings only,
+capped 400/mission, while 5233 is the all-agents counter. That exact gotcha was written in `notes.md`, which
+nothing had surfaced and I had not read. Injected context is not enough; it gets acted past.
+
+### Shipped (global, all projects)
+- **`~/.claude/hooks/handoff-gate.py`** (PreToolUse) — blocks `Bash|Edit|Write|NotebookEdit|Agent|Task|Workflow`
+  **plus their MCP equivalents** (`mcp__pare-process__*`, Serena editing tools, `pare-git commit|push`) until both
+  `.claude/SESSION-STATE.md` and `notes.md` have been Read **this session**. Proves it from the session transcript
+  (`transcript_path` is in the hook payload — verified), so it needs no companion hook. Read/Grep/Glob never gated:
+  the gate always has an exit and it costs one Read. Mode file `handoff-gate.mode` = `enforce|log|off`.
+- **`~/.claude/hooks/session-state-load.sh`** — now injects `SESSION-STATE.md` **and the latest `notes.md` entry**
+  (previously only the former, which is why the gotcha above never surfaced).
+- Global `CLAUDE.md` documents the mechanism and its escape hatch.
+
+### Two failures found by building it, both now designed out
+- **Bootstrap deadlock (real lockout).** v1 depended on a companion PostToolUse hook to record Reads. That hook was
+  the very edit the gate blocked → gate could never release → Bash/Edit/Write/Agent all dead, no in-band escape.
+  Had to break out via an MCP tool. **The gate is now self-sufficient (reads the transcript) and FAILS OPEN** on any
+  error. Never reintroduce a second-hook dependency; never make it fail closed.
+- **The MCP hole.** The escape above was only possible because MCP tools bypassed a native-tool-only gate — i.e. the
+  gate was theatre. Closed for exec/write MCP tools; read-only MCP (find_symbol, search) stays open.
+- Verified live in both directions: it blocked my own Edit when `notes.md` was unread, and released after the Reads.
+  Subagents inherit the parent's `session_id`/`transcript_path` (probed empirically), so they never strand; `Agent`
+  is gated so the gate can't be delegated around. 18ms on a 341-line transcript (early-exit scan; 5s timeout).
+
+### Known limit
+The gate proves a file was **opened**, not **absorbed** — a `Read` with a small `offset/limit` on an append-only
+`notes.md` passes while missing the newest entry. The load-bearing part is therefore the SessionStart injection
+carrying the latest entry; the gate is the forcing function that makes you look at all.
+
+### PSW itself: unchanged
+No mod code touched. Live DLL is still `feat/cramped-melee-v2@8d3153e` (hash-verified against `bin/Release`, contains
+`DescribeConfig`). `PSW_diag.log` still has **no `config:` line**, so no test battle has been run on the stamped build.
+**Still waiting on Mark's Test D: same fight at Windup Threshold 0.25 vs 0.60 — can the surrounded enemy finally die?**

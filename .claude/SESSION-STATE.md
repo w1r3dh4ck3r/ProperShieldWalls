@@ -28,9 +28,14 @@ its own `config:` line, so runs need no manual tracking.
 - `notes.md` — handoff entry
 
 ## Notes
+- **If your first Bash/Edit was BLOCKED: that is the new handoff gate, working as designed.** Read
+  `.claude/SESSION-STATE.md` + `notes.md` with the Read tool and retry. Read/Grep/Glob are never gated.
+  Details in global CLAUDE.md → "The handoff gate is mechanical". Escape: `echo off > ~/.claude/hooks/handoff-gate.mode`.
+- **Nothing about PSW's code or the test campaign changed this session** — the deployed DLL is still
+  `feat/cramped-melee-v2@8d3153e` and Test D is still the open question. The gate work was infrastructure only.
 - Back-rank spear investigation (queued 2026-07-10) is **DONE** — it was solved in the sibling repo
   `SpearPreferenceFork` (`73b60bc`, "behavior validated"). Do not re-open it here.
 - A build no longer deploys. Use `bl-deploy ProperShieldWalls bin/Release/ProperShieldWalls.dll`.
 - Branch `feat/cramped-melee-v2` is still UNMERGED.
 
-<!-- session-state-sync: last written by session 17771830 at 2026-07-11 21:05:01 -0300 -->
+<!-- session-state-sync: last written by session 9dbc0efa at 2026-07-12 08:28:48 -0300 -->
