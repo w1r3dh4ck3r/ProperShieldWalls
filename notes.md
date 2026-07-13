@@ -624,3 +624,58 @@ project rule: verify the compiled artifact's *content*, never its timestamp.
 
 **Awaiting Mark's in-game check** — and the test has two halves: the two effects must stop in free-cam **and must
 still work in first/third person**. A pass on the first half with a regression in the second is still a fail.
+
+---
+
+## 2026-07-13 (evening) — the census finally RAN. Leak replicated 3×, narrowed to ~15 roots, root still unnamed.
+
+No PSW code touched (still `9fae4a1`). Work is `MapEventNullFix@858fad7`.
+
+### It worked. 77,612 static fields → ~15 roots that grow EVERY battle.
+Armed `EnableMemoryTracker` while the game was closed, Mark fought 4 back-to-back battles in one launch, and the
+static-root census produced its **first-ever growth data** (it had only ever had a baseline; the 07-12 freeze
+killed its one prior run).
+
+**Leak replicated a THIRD independent time.** `MEMORY(retained)` at `after-teardown` (forced collect, mission gone,
+`agents=0`): **262.8 → 282.3 → 298.0 MB = +19.5, +15.7 MB/battle** — squarely in the established 17–21 MB band.
+
+### The trap in the output, and I nearly walked into it
+**The census reports ENTRY COUNTS, not BYTES.** The top of its list is not the leak. Its own bookkeeping dict
+(`MemoryTracker._prevStaticCounts`, +636) topped the very first report it ever produced — **an instrument that
+reports itself as the leak is a defect**, now excluded.
+
+### My lead hypothesis died to arithmetic — from data I had already collected
+I leaned hard on **RBMAI's Formation-keyed statics** (`advanceScaleStartStorage` et al). They *are* a real leak:
+**verified in source, never cleared** — only `OverrideMovementOrder.positionsStorage` is (`Tactics.cs:192`); the
+other five are written per-tick and never touched again, so every dead `Formation` is pinned forever.
+
+**But they cannot be the 17 MB, and the numbers were already in front of me.** A dead agent leaves its formation
+(`Agent.Formation = null` on removal, vanilla `Agent.cs:15529` — I verified this, it is the load-bearing fact), so
+a retained dead `Formation` roots only its **survivors**. Those two battles ended with **52** and **105** agents,
+while `DotNetObject.DotnetObjectReferences` grew **+321** and **+280**. **Formations cannot root ~300 objects when
+only 52 were left to root.** Real leak, wrong scale. The advisor caught this; I had the timestamps and the agent
+counts and had not multiplied them together.
+
+Also dead: **the prior session's prime suspect (RBMAI's *Agent*-keyed statics) does not appear in the census at
+all.** Two sessions carried it forward as "the" suspect. It was never checked against data until now.
+
+### New prime suspect — a different mechanism entirely
+Two **static events that gain subscribers every battle and never lose them**:
+`Input.OnGamepadActiveStateChanged` **+13/battle**, `HotKeyManager.OnKeybindsChanged` **+12/battle**.
+A static event's publisher lives forever and **pins each subscriber's `Target`**. If even one Target is
+mission-scoped, it roots that entire dead Mission — one battle's agents ≈ 17 MB. The **+300 magnitude fits "a whole
+dead mission retained"** and nothing smaller does. **This is still a suspicion. A count cannot name a culprit.**
+
+### So the instrument got upgraded rather than the fix shipped
+For any grown `[event]` root the census now walks the invocation list and logs **each subscriber's `Target` type**
+(static handlers are labelled — they pin nothing, so they are excluded by construction). Deployed and
+**live-verified** (hashes match; `x{n} subscriber:` literals confirmed in the shipped DLL via `strings -el`).
+Next back-to-back run turns `+13 anonymous subscribers` into a mod name and a class name.
+
+> **The rule that held:** *don't ship a leak fix before the census names the root.* Twice now this project has
+> over-claimed on this exact bug. The RBMAI-Formation fix is one line and very tempting — and it would have
+> "fixed" ~0 MB while we declared victory.
+
+### Separate real bug, logged NOT fixed
+`HarmonySharedState.originals` grows **+230/battle** ⇒ **something re-patches Harmony every mission.** Small bytes,
+so it is not the leak — but it is a genuine bug and it should not get conflated with one.

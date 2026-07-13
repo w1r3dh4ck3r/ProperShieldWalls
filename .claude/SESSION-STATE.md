@@ -79,10 +79,54 @@ Build output is `bin/Release/**net472**/`, not `bin/Release/`. Deploy target is
 `== Agent.Main`. Not reported as a problem and not obviously wrong — leave it unless Mark sees aim-assist
 weirdness in free-cam. The killmove/masterstrike **animations** are also untouched by design.
 
+### THE CENSUS RAN (2026-07-13 14:18 launch) — leak replicated a 3rd time, narrowed to ~15 roots, root NOT yet named
+**Leak REPLICATED, third independent session.** `MEMORY(retained)` at `after-teardown` (forced collect, `agents=0`):
+`262.8 → 282.3 → 298.0 MB` = **+19.5, +15.7 MB/battle**. Squarely in the established 17–21 MB band.
+
+**The census produced its first-ever growth data** (baseline + 2 growth reports, 4 battles in one launch).
+It cut **77,612 static fields → ~15 roots that grow EVERY battle**. That is the instrument working.
+
+**⚠ THE CENSUS REPORTS ENTRY COUNTS, NOT BYTES.** "+636 entries" ≠ "17 MB". Never read the top of that list as
+the leak — rank by *mechanism and scale*, not by count. This is the trap the numbers are shaped to spring.
+
+#### The prior prime suspect is DEAD, and the new one is a different mechanism
+- **RBMAI's Agent-keyed statics (the old suspect) did NOT appear in the census at all.** Drop it.
+- **RBMAI's FORMATION-keyed statics DO leak** — `OverrideBehaviorAdvance.advanceScaleStartStorage` /
+  `advanceLastTickStorage`, `OverrideBehaviorDefend/HoldHighGround.positionsStorage`,
+  `OverrideBehaviorMountedSkirmish.rotationDirectionDictionary`. **Verified in source: never cleared** (only
+  `OverrideMovementOrder.positionsStorage` is, `Tactics.cs:192`). **But they are arithmetically TOO SMALL to be
+  the 17 MB** — a dead agent leaves its formation (`Agent.Formation = null` on removal, vanilla `Agent.cs:15529`),
+  so a retained `Formation` roots only its **survivors**. Those battles ended with **52** and **105** agents while
+  `DotNetObject.DotnetObjectReferences` grew **+321** and **+280**. Formations cannot root ~300 objects when 52
+  were left. **Real leak, wrong scale. Do NOT name it as the root.**
+- **NEW PRIME SUSPECT — two never-unsubscribed static events:**
+  `TaleWorlds.InputSystem.Input.OnGamepadActiveStateChanged` (**+13/battle**) and
+  `HotKeyManager.OnKeybindsChanged` (**+12/battle**). A static event's publisher lives forever and **pins each
+  subscriber's `Target`**; if even one Target is mission-scoped it roots that whole dead Mission ≈ one battle's
+  agents ≈ 17 MB. The +300 magnitude fits "a whole dead mission retained" and nothing smaller does.
+  **Still a suspicion — counts cannot name it.**
+
+#### The instrument that names it is BUILT, DEPLOYED and LIVE-VERIFIED (`MapEventNullFix@858fad7`)
+For any grown `[event]` root it now walks the invocation list and logs **each subscriber's `Target` type**
+(static handlers labelled as such — they pin nothing, so they cannot be the leak). Also **excludes its own
+`_prevStaticCounts`**, which grew every battle by construction and topped the very first report it produced.
+Live DLL sha-verified; `x{n} subscriber:` literals confirmed present in the shipped binary.
+
+**NEXT RUN (still armed — `EnableMemoryTracker` is true): 4+ back-to-back battles, ONE launch.** Then grep
+`subscriber:` — that names the mod and the object. Expect the answer, not another suspicion.
+
+**Separate REAL bug, logged not fixed:** `HarmonySharedState.originals` grows **+230/battle** ⇒ something
+**re-patches Harmony every mission**. Small bytes, not the 17 MB — but it is a genuine bug. Don't conflate.
+
+**Turn `EnableMemoryTracker` back OFF once the root is named.** Its forced per-mission GC is not free.
+
 **The 07-12 freeze remains the other open question** — it did NOT recur across 3 back-to-back battles, so it is
 **intermittent, not load-gated**, and there is still **no dump**. Ask is unchanged and free: at the next freeze,
 per-core CPU (pinned core = spin, ~0% = deadlock), then Task Manager → right-click
 `Bannerlord.BLSE.Standalone.exe` → *Create dump file*, **THEN** kill. `TickWatchdog` prints a banner saying so.
+(The census's forced GC was previously held back so it would not perturb this repro. The freeze not recurring
+across 3 battles is why that hold was lifted — if the freeze suddenly returns this run, that trade is worth
+re-examining before blaming the census.)
 
 ## Files to touch next
 Nothing queued for EDIT — the next action is a deploy + Mark's in-game validation. If the fix needs iterating,
@@ -207,4 +251,4 @@ BrushWidget crash (rgl logs, Silk.NET, BrushWidget suspects) and points at a sta
 wrong evidence surface entirely. The purpose-built script for this freeze is saved at
 `.claude/projects/-home-w1r3d-AI-projects-ProperShieldWalls/62fb5037-*/workflows/scripts/psw-freeze-diagnose-2026-07-12-*.js`.
 
-<!-- session-state-sync: last written by session 9038547f at 2026-07-13 13:40:34 -0300 -->
+<!-- session-state-sync: last written by session 9038547f at 2026-07-13 13:56:02 -0300 -->
