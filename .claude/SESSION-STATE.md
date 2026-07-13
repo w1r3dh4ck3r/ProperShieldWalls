@@ -1,79 +1,83 @@
 # Session State — ProperShieldWalls
 
 ## Current Task
-**PSW itself is DONE and MERGED** (`9fae4a1`, master, 38/38 tests). No PSW code touched for six sessions; this repo
-is now just the handoff home.
+**PSW itself is DONE and MERGED** (`9fae4a1`, master, 38/38 tests). No PSW code touched for seven sessions; this
+repo is now just the handoff home for the wider Bannerlord modlist work.
 
-**THE MEMORY-LEAK HUNT IS CLOSED — not because it was solved, but because it was MEASURED and is not worth more of
-Mark's time.** Read the wiki page **`bannerlord-memory-leak-census`** before reopening anything here.
+Two things are deployed and **waiting on Mark's in-game verdict**. Nothing else is queued.
 
-## ⚠ THE TWO FINDINGS THAT END THIS
-1. **NOBODY EVER NAMED THE SYMPTOM.** Asked point-blank (2026-07-13), Mark: *"I really don't know the symptom that
-   started all this!"* Six sessions and many played battles went into a leak with **no complaint driving it**.
-   A hunt with no symptom has **no magnitude test**, so nothing can refute it and it never terminates.
-2. **THE BYTES WERE NEVER THERE.** Measured with PerfView heap dumps:
-   **3 retained Missions → 86.5 MB managed heap. 6 retained Missions → 86.9 MB.** Doubling the retained Missions
-   cost **0.4 MB**. The husks are near-empty (~22 Agents each), **not the "~26 MB each" this project asserted as
-   fact for five sessions.** That figure came from `MemoryTracker`'s forced-collect `GC.GetTotalMemory` and never
-   reconciled with the dump's ~87 MB total heap (**3x gap, never explained**).
-   **Native plateaus too:** fresh menu **6.64 GB** → 3 battles **8.28 GB** → 6 battles **8.40 GB**. Three more
-   battles = **+0.12 GB**. That is a one-time first-mission warm-up (~1.6 GB), then flat — **not a per-battle leak.**
-   *(Caveat, stated honestly: those three VMMap readings are from three different launches. Strong, not airtight.)*
+## Last Action (2026-07-13, late) — weapon-flapping residual fixed; a 28 MB/day log storm found and gated
+- **`SpearPreferenceFork@10f2e06`** (branch `feat/holdfire-spear-wield`, sha `48f1d09e…`, deployed + verified).
+  Schmitt trigger on the sidearm decision: the enemy-search radius widens from `MaxDistanceToSwitchToSidearms`
+  (2.0 m) to `+SidearmHysteresisGap` (1.5 m ⇒ 3.5 m exit) once a unit already prefers its sidearm, so staying is
+  easier than entering and boundary noise cannot flip it. Latches the **`num > num2` boolean**, not the distance —
+  the count is a knife-edge too (men die mid-melee). `num2` stays in both comparisons so a **cavalry charge still
+  pulls the unit back onto its spear immediately**. Per-agent state is a `ConditionalWeakTable` (weak keys) — a
+  `Dictionary<Agent,_>` on that game-scoped model would pin `Agent -> Team -> Mission` and leak a Mission a battle.
+  Also wired up `HoldFireHysteresisGap`, a **dead MCM slider** (in the DLL, referenced by no code since `e71e2c6`)
+  → renamed `SidearmHysteresisGap`.
+- **`MapEventNullFix@ff9e4ee` (v3.11.28)** (deployed + verified). `SpawnedItemEntityFix: Initialize() fired` was
+  logging **unconditionally on the battle hot path** — 175,359 of 186,482 lines, **94% of a 28 MB day-log** — and
+  `SubModule.Log` also does a `Debug.Print` and a UDP datagram per call. Now gated behind
+  `EnableMissionTickDiagnostics`. The `TryRemove` is load-bearing and stays unconditional.
 
-**What IS true:** dead `Mission` objects accumulate 1:1 with battles and are never collected. A genuine unbounded
-object-retention bug — just not where the gigabytes are.
+## ⏳ AWAITING IN-GAME VALIDATION (ask Mark before anything else)
+1. **Did the weapon flapping stop?** AND the discriminator that decides whether the fix is COMPLETE (asked twice,
+   never answered): **were the flapping units spearmen toggling spear↔sidearm?** That is *all* SpearPreferenceFork
+   can explain — its block only runs for polearm carriers. **Sword-only troops or archers flapping ⇒ a second
+   cause outside this mod, and this fix covers half the problem.** Do not accept "the flapping is gone" alone.
+2. **Do heavy battles feel like SLOW MOTION?** — see below.
 
-## Last Action — fixes SHIPPED and VALIDATED as effective; the leak SURVIVES (more roots beneath)
-Deployed, sha-verified, committed, pushed. A 6-battle post-fix snapshot proves **all three fixed roots are GONE
-from the heap** — the changes do exactly what they were meant to do:
-- **RBMFork `ed216a3`** — `Utilities.ClearAllFormationCaches()` (20 Formation-/Agent-keyed statics) called from
-  `RBMAIPatchLogic.OnRemoveBehavior()`. The root was `advanceScaleStartStorage`.
-- **MapEventNullFix `7f6a3b2` (v3.11.27)** — `_lastMission`/`_mission` → weak; new
-  `CustomBattleBannerBearersSpawnLogicLeakFixPatch` nulls vanilla `_missionSpawnLogic` at `Mission.EndMission`.
-  That vanilla static is a **correctness** bug too: assigned only-when-null and never reset, so every battle after
-  the first read a **stale spawn logic belonging to a dead mission**.
+## Next Step — the dt clamp: START FROM THE SYMPTOM, NOT THE COUNTER
+`MissionTickGuard` clamped dt **62,000 times in one launch** (2026-07-13). **Before hunting this, know that the
+count is expected by construction:** the clamp fires whenever a frame exceeds the cap, and above
+`HighLoadAgentThreshold = 800` agents the cap is `MaxDtHighLoad = 0.020f` — **50 fps**. A 1000-agent battle almost
+certainly runs below 50 fps, so the guard clamps **nearly every frame**. The number is not evidence of a fault.
 
-**But 6 Missions were still retained after 6 battles — still 1:1.** Three MORE roots were hiding underneath:
+**The real question:** clamping dt below the true frame time advances less game-time than wall-clock, so **heavy
+battles may be running in slow motion.** That is a gameplay symptom Mark can confirm or refute in one battle, for
+free. **Ask him first.** If he cannot feel it, there is nothing here — this project has already burned six
+sessions on a growing number with no named symptom, and this is the same shape.
+(Source: `MapEventNullFix/Patches/MissionTickGuardPatch.cs:31-33`, clamp sites at `:236` and `:318`.)
 
-| Remaining root | Chain |
-|---|---|
-| **`[StrongHandle]`** (dominant, 3 of 5 sampled) | `-> Object[] -> List<Formation> -> Formation -> Team -> Mission` |
-| `FormationFilter...CustomFormationItemVM._mixinReverseDictionary` | static dict keyed by a mission-scoped VM |
-| `ArtemsCinematicCharges.SprintMixin.<Instance>` | `-> MissionAgentStatusVM -> Mission` |
+**On the memory leak: NOTHING. Do not reopen without a symptom.** It was MEASURED and closed — see the wiki page
+`bannerlord-memory-leak-census`. Doubling retained Missions (3→6) cost **0.4 MB** of an 87 MB heap; native
+plateaus (6.64 → 8.28 → 8.40 GB). Dead Missions *are* retained 1:1 with battles (a real unbounded-retention bug),
+but the gigabytes were never there, and **nobody could ever name the user-visible symptom that started it.**
+If a real symptom ever appears, the next roots are `[StrongHandle]` (native-interop GC handle) and the
+`MissionSharedLibrary` **mixin statics** (a framework-wide pattern shared by RTSCamera / ACC / FormationFilter).
 
-**A multi-rooted leak HIDES ITS OWN ROOTS** — a spanning tree shows one parent per node, so while RBMAI held every
-Mission the others were redundant and invisible. Expect to **peel** a leak, never to one-shot it. (The
-pre-registered bar — *"the count must stop tracking the battle count"*, NOT "zero" — is what caught this honestly
-instead of letting a partial win be declared.)
-
-## Next Step
-**NOTHING. Do not reopen this without a symptom.** If a real one ever appears (OOM, degradation over hours, a
-crash), the next target is **`[StrongHandle]`** — a GC handle held by native interop, a different bug class from
-the static dictionaries — and the two **mixin statics** (`MissionSharedLibrary`'s framework, shared by RTSCamera /
-ACC / FormationFilter, keeps static registries keyed by mission-scoped ViewModels: a framework-wide pattern, not
-one mod's bug).
-
-**Turn `EnableMemoryTracker` OFF** — its forced per-mission GC is not free and the hunt is over.
+## Logging state — the modlist is CLEAN for a normal playthrough (audited 2026-07-13, all verified on disk)
+- Every MapEventNullFix perf/diag flag, incl. `EnableMemoryTracker`, is **false** (confirmed in the log, not
+  assumed: `MEMORY` lines stop at 18:58, config flipped 19:09).
+- Newly off: **PSW `DiagnosticLogging`**, **ACC `Debug`** (it printed "X is performing killmove on Y" on-screen).
+  `.bak_20260713_prenormal` copies sit beside both.
+- **Still noisy, left alone:** `Retinues/debug.log` (~2 MB/day, third-party, unconditional despite its own
+  `DebugMode: false`). Not worth a fork.
+- **Method that found the storm:** *don't read the flags, read the log FILES.* Every flag was already false; the
+  storm came from code no flag governed. `find -mtime -3 -iname "*.log"` found in seconds what a config audit
+  never would. A config audit says what we *asked for*; the artifacts on disk say what is *happening*.
 
 ## Key facts (durable — the rest is in the wiki)
 - **The LIVE RBM fork is `~/AI/projects/RBMFork`. `RealisticBattleAiPerf` is RETIRED** (its own `SUPERSEDED.md`);
-  the game's `Modules/` has no `RBM` dir. A fix deployed there is a **silent no-op**. `RBM_WS_Fork` and
-  `SmartRBMpatch` are enabled but ship **no DLLs** (XML only) — no duplicate-assembly conflict.
-- **Snapshots kept, re-analyzable offline forever, no game needed:** `C:\Users\w1r3d\Tools\psw_after.gcdump`
-  (3 battles, pre-fix) and `psw_after2.gcdump` (6 battles, post-fix), plus `vm_before/after/after2.csv`.
-- **PerfView needs Admin** (UAC via `Start-Process -Verb RunAs`); the output path is **POSITIONAL**; it **freezes
-  the target** ⇒ snapshot at the **main menu**. The process is **`Bannerlord.BLSE.LauncherEx.exe`**.
-- **Reading a gcdump headlessly:** `dotnet-gcdump report` prints ZERO type rows for a PerfView dump — use the
-  `GCHeapDump`/`RefGraph`/`SpanningTree` API *inside* `dotnet-gcdump.dll` from a .NET 8 console app. The wiki has
-  the recipe (namespaces, the `ForEach`-before-`Parent` gotcha, the referrer idiom).
-- **The 07-12 hard freeze is STILL UNRESOLVED and is a SEPARATE bug** — not recurred in ~23 battles. Still **no
-  dump**. At the next freeze: note per-core CPU (pinned core = spin, ~0% = deadlock), then Task Manager →
-  right-click **`Bannerlord.BLSE.LauncherEx.exe`** → *Create dump file*, **THEN** kill. **Never automate this
+  the game's `Modules/` has no `RBM` dir. A fix deployed there is a **silent no-op**.
+- **`SpearPreferenceFork/src/` is GENERATED** from the stock DLL. Local fixes live in `scripts/local-fixes.patch`
+  (6 hunks), which `normalize.sh` re-applies and **aborts without**. Edit `src/`, then REGENERATE the patch —
+  a bare re-normalize would silently ship stock behaviour that still builds and still looks fine.
+- **`strings -el` on a .NET DLL is a FALSE NEGATIVE for symbol names.** Metadata names (properties, methods) are
+  **UTF-8** — use plain `strings -a`. Only string *literals* are UTF-16. This cost a wrong "absent" reading today.
+- **`Debug.Print` output is captured by NOTHING on this machine** — a mod that logs only via `Debug.Print` is
+  invisible. That is why the UDP sender's liveness could not be confirmed.
+- **PerfView needs Admin**; output path is **POSITIONAL**; it **freezes the target** ⇒ snapshot at the **main
+  menu**. Process is **`Bannerlord.BLSE.LauncherEx.exe`**. Snapshots kept at `C:\Users\w1r3d\Tools\*.gcdump`.
+- **The 2026-07-12 hard freeze is STILL UNRESOLVED and is a SEPARATE bug** — not recurred in ~23 battles, still
+  **no dump**. At the next freeze: note per-core CPU (pinned core = spin, ~0% = deadlock), then Task Manager →
+  right-click `Bannerlord.BLSE.LauncherEx.exe` → *Create dump file*, **THEN** kill. **Never automate this
   in-process** — a self-dump froze the game once already.
-- **Square census** (PSW) — never captured; `DiagnosticLogging` is ON, so a Square battle captures it free.
-- **ACC:** camera fix VALIDATED in-game. Slow-mo gate CLOSED (Mark's call).
+- **Square census** (PSW) — never captured, and no longer free: `DiagnosticLogging` is now **OFF**. Re-enable it
+  in MCM deliberately if it is ever wanted.
 
 ## Files to touch next
-**Nothing is queued.** The leak work is closed. If it reopens:
-`RBMFork/Source/RBMAI/RBMAI/Utilities.cs`, `RBMFork/Source/RBM/RBM/RBMAIPatchLogic.cs`.
-Re-Read before editing — compaction wipes read-state.
+**Nothing is queued** — both deployed changes are waiting on Mark, not on code. If the dt-clamp thread opens:
+`MapEventNullFix/MapEventNullFix/Patches/MissionTickGuardPatch.cs`.
+Re-Read any file before editing — compaction wipes the harness's read-state.

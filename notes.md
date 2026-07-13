@@ -251,3 +251,68 @@ first reads a stale spawn logic belonging to a dead mission.
 **Nothing. The hunt is closed** — do not reopen without a symptom. Turn `EnableMemoryTracker` OFF (its forced
 per-mission GC is not free). The **2026-07-12 hard freeze remains unresolved and is a separate bug**; it has not
 recurred in ~23 battles and still has no dump.
+
+---
+
+## 2026-07-13 (late night) — the weapon-flapping residual fixed, and a 28 MB/day log storm found in our own crash mod
+
+No PSW code touched (still `9fae4a1`). Work is `SpearPreferenceFork@10f2e06` and `MapEventNullFix@ff9e4ee` (v3.11.28).
+
+### The feature Mark asked for was one I had recommended AGAINST — correctly, and it came due
+Last session I fixed the weapon oscillation (a preference function that read its own output) and **deliberately
+left a single hard threshold at 2.0 m**, arguing the residual only bites when a *lone* enemy hovers exactly on the
+line, and that "adding machinery for a symptom you're not seeing means new per-agent state and a new way to be
+wrong." Mark then saw it. That is the system working: the residual was **named, priced, and left open in writing**,
+so when the symptom appeared the fix was already designed and took one edit. **Say what you are NOT fixing and why
+— then it is a decision, not an omission.**
+
+### The fix is a Schmitt trigger on the DECISION, not on the distance
+The naive read is "add hysteresis to the 2.0 m radius". Wrong target. The weapon flips wherever `num > num2`
+crosses, and an agent in contact crosses that comparison on **two** knife-edges: the distance line (footwork —
+step in to stab, step back to guard) and the **foot-count itself, because men are dying mid-melee**. Latching the
+*boolean* covers both; latching the distance covers one. `num2` (cavalry) stays in both comparisons on purpose, so
+a charge still pulls the unit back onto its spear immediately — **that is why hysteresis and not a commit-timer**,
+which would hold him on a sword while he was ridden down.
+
+Per-agent state lives in a **`ConditionalWeakTable`** (weak keys). A `Dictionary<Agent,_>` on that game-scoped
+model would pin `Agent -> Team -> Mission` and leak a Mission per battle — **the exact bug class the last six
+sessions were spent closing.** The leak hunt paid for itself here, in a mod that never had the leak.
+
+### A slider that promised something and did nothing
+`HoldFireHysteresisGap` was **already in the MCM menu and wired to zero lines of code** — shipped in the DLL,
+orphaned when the Hold-Fire sweep machinery was stripped in `e71e2c6`. Mark could drag it and nothing happened.
+Renamed `SidearmHysteresisGap` and it now does what its hint text always claimed. **A stripped feature leaves its
+settings behind; grep the settings class when you delete machinery.**
+
+### Then Mark asked the question that found the real problem: "any logging still active?"
+**94% of a 28 MB single-day log was ONE line.** `SpawnedItemEntityFix: Initialize() fired` — 175,359 of 186,482
+lines — logged **unconditionally on the battle hot path** for every legitimate dropped weapon. Not a diagnostic
+flag; a **production crash-fix logging its own normal operation**. And `SubModule.Log` does three things per call:
+file write, `Debug.Print`, **and a UDP datagram**. Gated behind `EnableMissionTickDiagnostics` in v3.11.28.
+
+**The audit method that worked: don't read the flags, read the LOG FILES.** Every diag flag in MapEventNullFix was
+already `false` — the storm came from code no flag governs. `find -mtime -3` on `*.log` found in seconds what
+reading the config would never have shown. **A config audit answers "what did we ask for"; the artifacts on disk
+answer "what is actually happening."**
+
+### Honest limit on that finding
+The **UDP send per call is INFERRED, not observed.** `UdpLogger`'s own init line goes through `LogLocal`, which
+only calls `Debug.Print` — **and `Debug.Print` is captured by nothing on this machine**, so the sender's liveness
+cannot be confirmed from any log. The file-write and `Debug.Print` costs are certain; the datagram is very likely
+(the ctor and `IPAddress.Parse` on a literal address cannot fail) but unproven. Labelled as such in the CHANGELOG
+rather than left to be inherited as fact.
+
+### Next: the dt clamp, and why it is probably NOT a bug
+`MissionTickGuard` clamped dt **62,000 times in a single launch** today. Before anyone hunts that: **the clamp
+fires whenever a frame exceeds the cap, and above 800 agents the cap is `MaxDtHighLoad = 0.020f` — 50 fps.** A
+1000-agent battle almost certainly runs below 50 fps, so the guard clamps **nearly every frame by construction.**
+The count is expected; it is not evidence of a fault.
+
+**The real question, and it is a good one:** clamping dt below the true frame time makes the simulation advance
+less game-time than wall-clock — i.e. **heavy battles may be running in slow motion.** That is a gameplay symptom
+Mark can confirm or refute in one battle, and it costs nothing to ask. **Do not start from the counter; start
+from whether he can feel it.** (This is the same trap as the leak: a growing number with no named symptom.)
+
+**Awaiting Mark's in-game verdict on the hysteresis**, and the discriminator that decides whether it is complete:
+**were the flapping units spearmen toggling spear↔sidearm?** That is all `SpearPreferenceFork` can explain — its
+block only runs for polearm carriers. Sword-only troops or archers flapping ⇒ a second cause, outside this mod.
