@@ -86,9 +86,15 @@ diff is the only thing that can settle it — that is why step 3 above matters.
   next freeze: note per-core CPU (a pinned core = spin, ~0% = deadlock), then Task Manager → right-click the
   **`Bannerlord.BLSE.LauncherEx.exe`** process → *Create dump file*, **THEN** kill. **Never automate this
   in-process** — a self-dump is what froze the game once already.
-- **ACC slow-motion gate: NOT validated.** Mark confirmed the *camera* fix ("the fix to the killmoves worked");
-  he has never confirmed the masterstrike 0.2× drop is gone in free-cam. It must also STILL work in first/third
-  person — a pass on one half with a regression in the other is a fail. **Ask him.**
+- **ACC slow-motion gate: CLOSED 2026-07-13 — Mark's call, "I don't use slow motion, it never bit us."** Do not
+  re-open or re-ask. Recorded because a contradiction was surfaced and NOT silently resolved: the live config
+  actually has **`"masterStrikeSlowmotion": true`** (`ModSettings/Global/ArtemsCinematicCombat/…json:23`) — Mark was
+  most likely thinking of **DismembermentPlus**, whose `"SlowMotion": false`. Closing anyway is safe on the code:
+  only the **add** is gated (IL: `AddTimeSpeedRequest` ×1 gated, `RemoveTimeSpeedRequest` ×3 untouched) and ACC's
+  masterstrike path already returns unless `affectedAgent == Agent.Main`, so in first/third person `IsMine` is true
+  and slow-mo behaves exactly as before. **No regression path exists**; the gate can only suppress the 0.2× drop
+  while the AI drives his body in free-cam. ~14 battles on that build, no complaint. The **camera** half is
+  VALIDATED in-game ("the fix to the killmoves worked").
 - **Square census** (PSW) — never captured; `DiagnosticLogging` is ON, so a Square battle captures it free.
 - **`EnableMemoryTracker` is still ON.** Turn it OFF once the root is named — its forced per-mission GC is not free.
 
@@ -107,3 +113,5 @@ read-state). Live: `MapEventNullFix@872b4c1` (v3.11.26), deployed + sha-verified
 - **Never send Mark to fight on an unverified instrument:** `bl-verify-armed MapEventNullFix --expect "…"`; after a
   RELAUNCH pass `--since "HH:MM:SS"`.
 - **ACC rollback:** original module archived at `D:\Backup\Bannerlord BKP\Removed_ArtemsCinematicCombat_original_20260712`.
+
+<!-- session-state-sync: last written by session 280e86d6 at 2026-07-13 17:40:41 -0300 -->
