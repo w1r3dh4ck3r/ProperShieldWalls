@@ -600,3 +600,27 @@ months; it silently no-op'd my first two decompile attempts.
   calls `ReleaseCamera()` and never nulls `CustomCamera`. ACC simply stays out of RTS's way. The only path that
   nulls it is the rare enter-free-cam-mid-killmove transition, where handing the camera back to RTS is correct.
   If a stuck/black view is ever reported **in free-cam specifically**, that transition is the place to look.
+
+### Slow-mo gate added on the same root cause — and the safety is PROVEN, not hoped
+Mark asked for the masterstrike gate too. `SlowMotion()` adds `TimeSpeedRequest(0.2f, key 214)`, so an enemy
+swinging at his AI-driven body dropped the **whole battle** to 0.2× while he was merely commanding.
+
+Two things had to be read before touching it, and both changed the answer:
+- **The masterstrike path is ALREADY player-only** — it returns unless `affectedAgent == Agent.Main` (~714). So
+  `SlowMotion()` is never called for AI-vs-AI, and gating it **takes slow-mo from nobody else**. There was no
+  AI-vs-AI slow-mo to lose. (Worth knowing before "gate it" turns into "I deleted a feature".)
+- **Slow-mo is a per-tick REFRESH, not a latched state.** `OnMissionTick` calls `RemoveSlowMotion()`
+  **unconditionally every tick** (:873) and only *then* re-adds if an enemy is mid-swing. That is exactly why
+  gating the **ADD** alone is safe and **cannot strand a dilated clock** — the unconditional remove clears it on
+  the very next tick. **Gate the add, never the removal.** Had the removal been gated too (the symmetric-looking,
+  "obvious" edit), a free-cam entry mid-masterstrike would have locked the battle at 0.2× permanently.
+
+IL proves the asymmetry landed: **1** `AddTimeSpeedRequest` (gated) and **3** `RemoveTimeSpeedRequest` (untouched).
+
+### DEPLOYED and verified against the metal
+`ArtemsCinematicCombatFork@5f28961` → `Modules/ArtemsCinematicCombatFork/bin/Win64_Shipping_Client/`. Live DLL
+hash matches the build, and **decompiling the deployed DLL** (not the build output) shows `get_IsMine` ×3. Per the
+project rule: verify the compiled artifact's *content*, never its timestamp.
+
+**Awaiting Mark's in-game check** — and the test has two halves: the two effects must stop in free-cam **and must
+still work in first/third person**. A pass on the first half with a regression in the second is still a fail.

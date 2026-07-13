@@ -62,23 +62,22 @@ Task Manager → right-click `Bannerlord.BLSE.Standalone.exe` → *Create dump f
 construction. `TickWatchdog` survives as a log-only stall detector that tells Mark to do exactly that. Also get
 per-core CPU: a pinned core says spin, ~0% says deadlock. Analyse in WinDbg (`~*k`, `!clrstack` under SOS).
 
-## Next Step — ONE action, and it is a DEPLOY that is already built
-**The ACC camera fix is DONE, committed (`ArtemsCinematicCombatFork@81da4f0`), built and IL-verified — but NOT
-DEPLOYED, because the game was running.** This is the whole next step:
+## Next Step — DEPLOYED; the only thing left is Mark's in-game validation
+**Both free-cam gates are LIVE** (`ArtemsCinematicCombatFork@5f28961`, deployed 2026-07-13 13:47, live DLL
+sha-verified + decompiled: `get_IsMine` ×3 present in the deployed binary, not just the build).
 
-```bash
-# 1. confirm closed (BROAD match — never grep "Bannerlord.exe")
-/mnt/c/Windows/System32/tasklist.exe | grep -iE "bannerlord|taleworlds" || echo CLOSED
-# 2. deploy
-cp ~/AI/projects/ArtemsCinematicCombatFork/bin/Release/net472/ArtemsCinematicCombatFork.dll \
-   "/mnt/d/SteamLibrary/steamapps/common/Mount & Blade II Bannerlord/Modules/ArtemsCinematicCombatFork/bin/Win64_Shipping_Client/"
-# 3. Mark validates: enter RTS free-cam, let a killmove hit his character -> camera must NOT snap.
-```
-Note the build output is `bin/Release/**net472**/`, not `bin/Release/`.
+**What Mark validates:** enter RTS Camera free-cam, let an enemy attack his (AI-driven) character.
+1. A killmove must **NOT** snap the camera into the animation.
+2. A masterstrike must **NOT** drop the battle to 0.2× speed.
+Both must still work normally when he is fighting in first/third person — that's the other half of the test, and
+a pass on (1)+(2) with a regression there is still a fail.
 
-**Still open, deliberately NOT done (Mark's call):** `masterStrikeSlowmotion` has **no `Agent.Main` gate at all**
-(`SlowMotion()`/`RemoveSlowMotion()`, ~825/835), so a killmove on his AI-driven body still dilates time for the
-whole battle even with the camera fixed. One-line add if he wants it. Lock-on (`EnableLockOn`) likewise untouched.
+Build output is `bin/Release/**net472**/`, not `bin/Release/`. Deploy target is
+`Modules/ArtemsCinematicCombatFork/bin/Win64_Shipping_Client/`.
+
+**Still untouched, deliberately:** lock-on (`EnableLockOn`, sites ~449/~8403/~8414) still gates on
+`== Agent.Main`. Not reported as a problem and not obviously wrong — leave it unless Mark sees aim-assist
+weirdness in free-cam. The killmove/masterstrike **animations** are also untouched by design.
 
 **The 07-12 freeze remains the other open question** — it did NOT recur across 3 back-to-back battles, so it is
 **intermittent, not load-gated**, and there is still **no dump**. Ask is unchanged and free: at the next freeze,
@@ -208,4 +207,4 @@ BrushWidget crash (rgl logs, Silk.NET, BrushWidget suspects) and points at a sta
 wrong evidence surface entirely. The purpose-built script for this freeze is saved at
 `.claude/projects/-home-w1r3d-AI-projects-ProperShieldWalls/62fb5037-*/workflows/scripts/psw-freeze-diagnose-2026-07-12-*.js`.
 
-<!-- session-state-sync: last written by session 42ad2807 at 2026-07-13 09:41:35 -0300 -->
+<!-- session-state-sync: last written by session 9038547f at 2026-07-13 13:40:34 -0300 -->
