@@ -463,3 +463,74 @@ and an empty list reads as *"no mod is implicated"*) and its scope is now honest
 **Verify the arm lines in the ModLog before reading anything into the result** — the instrument is `RequireRestart`
 and has never run in the field. `EnableMemoryTracker` left OFF on purpose: the census wants exactly this run, but
 its forced per-mission GC adds a timing variable to an intermittent freeze repro. The freeze outranks the leak.
+
+---
+
+## 2026-07-13 (later) — the instrument I shipped yesterday was the freeze. Fixed; game plays again.
+
+No PSW code touched (still `9fae4a1`). Everything below is MapEventNullFix + docs.
+
+### I broke the game, and the fix for the freeze was to delete my fix for the freeze
+Mark opened the game to test and **the Custom Battle hung on the loading screen**. It was **v3.11.22's
+`CrashDumper`** — the instrument the last session built to *capture* the freeze. It **caused** one.
+
+`MiniDumpWriteDump` was called with `hProcess = GetCurrentProcess()` — a **self-dump**. To walk its own memory it
+suspends every thread but the dumper's. The faulting thread is one of them, parked in `RequestDumpFromVeh` on
+`_dumpComplete.WaitOne(30000)` — so it is suspended *while waiting* and **can never reach its own timeout**. The
+dump never returns; the process sits frozen holding a 0-byte `.dmp`.
+
+**It made things strictly worse.** Those AVEs were being caught and **recovered 7/7** before this; the first one
+after the instrument shipped hung the game. It also blocked the VEH before it could log the fault address — so the
+instrument built to capture evidence **destroyed the evidence we already had**. Both costs were invisible until
+Mark tried to play.
+
+**The evidence, which is unusually clean:** two `menf_ave_*.dmp`, **both exactly 0 bytes**; **zero** `CrashDumper:`
+lines in the log (so `WriteDump` reached *neither* its WROTE nor its FAILED branch — it went in and never came
+out); log's last line stamped the same second as the second dump; two launches, both ending there. Hard deadlock
+vs. pathological slowness was never established — **and does not matter**, the fix is identical. Resisting the urge
+to name a mechanism we hadn't proven is the only reason that claim is safe to write down.
+
+**Fixed: v3.11.23 (`7ea2291`).** `EnableCrashDumps` defaults **false**. Verified the live MCM JSON contains neither
+key (mtime predates v3.11.22, and both hung runs were force-killed so MCM never saved), so the code default
+governs. Mark relaunched: **battles load, he is running tests.** Confirmed fixed.
+
+### A minidump can only be taken safely from ANOTHER process — and that was always the plan
+This is why Windows says not to self-dump and why Breakpad et al. use an out-of-process handler. The manual route
+(Task Manager → right-click `Bannerlord.BLSE.Standalone.exe` → *Create dump file*) is **deadlock-proof by
+construction**, costs nothing, and is what the diagnosis asked for in the first place. **The instrument that tried
+to automate it is the thing that broke.** Automating it properly needs a helper exe (spawn with the game PID,
+`ClientPointers = 1`) — NOT built, NOT authorized.
+
+`TickWatchdog` survives as a **log-only detector**: on a >30 s tick stall it prints a `TICK WATCHDOG` banner naming
+the second the tick died (proof a hang was a *tick* stall, not a render/driver hang) and tells Mark to grab the
+manual dump while the game is still frozen.
+
+### Three docs were still telling the next session to build it — all three fixed
+The doc sweep mattered more than the code fix here. `crash-diagnosis-reference.md` §5 is the **rule-zero prior-art
+doc** — a future session is *required* to read it — and it still carried the exact self-dump P/Invoke labelled
+"Recommended for Bannerlord crash diagnosis". It now opens with a ⛔ block. Same for
+`docs/freeze-2026-07-12-diagnosis.md` (fix-plan step 1) and the wiki page `bannerlord-stale-agent-crashes` (which
+described the dump as automatic and working). **A doc that recommends a bug is worse than the bug: the bug gets
+fixed once, the doc rebuilds it.**
+
+### The generalisable rule (now in the wiki)
+> **An instrument that suspends, blocks, or locks the thread it observes will eventually BE the bug.** Observe
+> out-of-process when the target may be sick.
+
+### NEW, deferred (Mark's report, not fixed): ACC cinematic camera hijacks RTS view
+Commanding from RTS Camera's bird's-eye view, a matched-combat killmove fires on his character and **the camera
+snaps into the animation and back out**. Cause, from the source: ACC gates its *player* paths on **`Agent.Main`**,
+and `Agent.Main` **still points at your character in free-cam** — RTS Camera reassigns *control*, not identity
+(`AIControlMainAgent`, `AgentControllerType`, `IsSpectatorCamera` in its DLL). So `== Agent.Main` keeps matching
+while the AI drives the body.
+
+**Gate the CAMERA, not the animation.** Mark suggested excluding his character from matched animations; gating the
+camera is better — the killmove still plays (no combat-behaviour change, he keeps the mod's point) and he just
+isn't yanked into it. Vanilla answers "is the human actually driving?" via **`Agent.Controller`** (verified present
+in `TaleWorlds.MountAndBlade.dll`). Full write-up, call sites and caveats: wiki `artemscinematiccombat-fork`.
+**Unverified and to check FIRST: that RTS Camera really sets `Controller` to AI** — the whole fix rests on it.
+
+### Next
+1. Mark is running test battles. If a freeze recurs: **manual dump before killing**, plus per-core CPU (one core
+   pinned = spin, ~0% = deadlock). That dump is still the one missing piece of the 07-12 diagnosis.
+2. The ACC/RTS camera bug above.

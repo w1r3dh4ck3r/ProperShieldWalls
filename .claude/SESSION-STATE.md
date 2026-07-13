@@ -5,25 +5,53 @@
 touched for three sessions. The live work is in sibling repos. **The 2026-07-12 hard freeze is now DIAGNOSED
 (2026-07-13) and waiting on ONE free piece of evidence from Mark — a process dump at the next freeze.**
 
-## Last Action
-Diagnosed the freeze (21-agent Fable workflow), then **built + deployed the instrument it asked for**:
-**MapEventNullFix v3.11.22** (`2869d65`, pushed, live DLL sha `a6befdc8`) — `CrashDumper` (minidump on native AVE,
-taken from the VEH) + `TickWatchdog` (dumps the process during a 30 s tick stall). Both **default ON**.
-`EnableMemoryTracker` deliberately left **OFF** — see below.
+## Last Action — I SHIPPED A REGRESSION AND THEN FIXED IT. Read this before anything else.
+**v3.11.22's `CrashDumper` HUNG THE GAME.** It made things strictly worse: it turned a *recovered* native AVE into
+a hard freeze. Mark hit it on the first try, twice, on a Custom Battle loading screen (2026-07-13 ~08:46 / 08:48).
 
-## Next Step — MARK IS FIGHTING BACK-TO-BACK BATTLES TO TRIGGER THE FREEZE. Read the result.
-**FIRST, before trusting anything: verify the instrument actually armed at runtime.** It is `RequireRestart` and
-has never run in the field. On the next launch the ModLog must contain `TickWatchdog: armed` and (on a fault)
-`CrashDumper: WROTE …`:
-```bash
-grep -nE "TickWatchdog: armed|CrashDumper" "/mnt/c/Users/w1r3d/Documents/Mount and Blade II Bannerlord/Configs/ModLogs/MapEventNullFix$(date +%Y%m%d).log"
-```
-**No arm line ⇒ the run captured nothing; do not read anything into a missing dump.**
+**Mechanism:** `MiniDumpWriteDump` was called with `hProcess = GetCurrentProcess()` — a **self-dump**. It suspends
+every thread but the dumper's. The faulting thread is one of them, parked in `RequestDumpFromVeh` on
+`_dumpComplete.WaitOne(30000)` — so it is suspended *while waiting* and can never reach its own timeout. The dump
+never returns; the process sits frozen holding a 0-byte `.dmp`. (Hard deadlock vs. pathological slowness is NOT
+established and does not matter — same fix.) Evidence: two 0-byte `menf_ave_*.dmp`; **zero** `CrashDumper:` lines
+(so `WriteDump` reached neither its WROTE nor its FAILED branch); log's last line = the same second as the dump.
 
-**Then:** look for `Configs/ModLogs/menf_freeze_*.dmp` (the freeze) and `menf_ave_*.dmp` (the native walker).
-A dump is the ONLY thing that settles where the main thread parks. Analyse in WinDbg (`~*k` for all thread stacks,
-`!clrstack` under SOS). Also ask Mark for per-core CPU at the freeze — a pinned core says spin, ~0% says deadlock.
-If the watchdog logged `ticking RESUMED — that stall was NOT a freeze`, that dump is a false alarm; discard it.
+**Fixed + deployed: v3.11.23 (`7ea2291`, live DLL sha `d2769573`, clean).** `EnableCrashDumps` now defaults
+**false**. The live MCM JSON (mtime 07-12 23:31) contains **neither** key, so the code default governs — verified.
+**A minidump can only be taken safely from ANOTHER process. Do not set `EnableCrashDumps = true`.** Automating it
+properly needs an out-of-process helper (spawn an exe with the game PID, `ClientPointers = 1`) — NOT built, NOT
+authorized. Offer it to Mark; don't build it unasked.
+
+**CONFIRMED FIXED IN-GAME (2026-07-13):** Mark relaunched, battles load, he ran test battles. Committed + pushed.
+
+Three docs were still telling the next session to build the thing that hung the game — **all three now corrected**:
+`docs/crash-diagnosis-reference.md` §5 (the RULE-ZERO prior-art doc — it carried the exact self-dump P/Invoke
+labelled "Recommended"), `docs/freeze-2026-07-12-diagnosis.md` (fix-plan step 1), and the wiki page
+`bannerlord-stale-agent-crashes` (described the dump as automatic and working). A doc that recommends a bug is
+worse than the bug: the bug gets fixed once, the doc rebuilds it.
+
+**The VEH still works.** With dumps off, `RequestDumpFromVeh` early-returns (it was the only blocking call in it),
+so it goes back to logging the fault address. **The freeze dump is now MANUAL, and that was always the plan** —
+Task Manager → right-click `Bannerlord.BLSE.Standalone.exe` → *Create dump file*, **then** kill. Deadlock-proof by
+construction. `TickWatchdog` survives as a log-only stall detector that tells Mark to do exactly that. Also get
+per-core CPU: a pinned core says spin, ~0% says deadlock. Analyse in WinDbg (`~*k`, `!clrstack` under SOS).
+
+## Next Step — two items, neither started
+1. **The 07-12 freeze is STILL the open question.** Nothing about it was solved this session; we only stopped
+   *causing a second one*. The missing evidence is unchanged: **a manual process dump at the next freeze.** If Mark
+   reports one, get the dump + per-core CPU before he kills it.
+2. **NEW deferred bug — ACC cinematic camera hijacks the RTS view** (Mark, 2026-07-13). Commanding from RTS Camera's
+   bird's-eye view, a matched-combat killmove fires on his character and the camera snaps into the animation and
+   back out. **Cause:** ACC gates its *player* paths on `Agent.Main`, and `Agent.Main` still points at his character
+   in free-cam — RTS Camera reassigns *control*, not identity. **Fix the CAMERA, not the animation** (killmove still
+   plays, no combat change): gate on `Agent.Controller` (`get_Controller` verified present in
+   `TaleWorlds.MountAndBlade.dll`). **Verify FIRST that RTS Camera actually sets `Controller` to AI — the whole fix
+   rests on it.** Call sites, the MCM "Cinematic Camera" setting, and caveats: wiki `artemscinematiccombat-fork`.
+
+## Files to touch next
+Only if item 2 is authorized: `~/AI/projects/ArtemsCinematicCombatFork/scripts/perf-fixes.patch` (**NOT** `src/` —
+`src/ArtemsCinematicCombat.cs` is GENERATED and a `normalize.sh` run destroys direct edits; the patch is the only
+durable place). Read the fork's wiki page before touching either.
 
 **Full report: `~/AI/projects/MapEventNullFix/docs/freeze-2026-07-12-diagnosis.md`** (adversarially verified,
 Medium confidence). Fix-plan **steps 2-6 remain UNAUTHORIZED** — three refuters independently killed the claim that
@@ -139,4 +167,4 @@ BrushWidget crash (rgl logs, Silk.NET, BrushWidget suspects) and points at a sta
 wrong evidence surface entirely. The purpose-built script for this freeze is saved at
 `.claude/projects/-home-w1r3d-AI-projects-ProperShieldWalls/62fb5037-*/workflows/scripts/psw-freeze-diagnose-2026-07-12-*.js`.
 
-<!-- session-state-sync: last written by session 62fb5037 at 2026-07-13 08:02:31 -0300 -->
+<!-- session-state-sync: last written by session b72a371c at 2026-07-13 09:00:21 -0300 -->
