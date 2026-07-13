@@ -1,116 +1,88 @@
 # Session State — ProperShieldWalls
 
 ## Current Task
-**PSW itself is DONE and MERGED** (`9fae4a1`, master, 38/38 tests, 0.149% of frame). No PSW code touched
-this session. The job is the **frame eaters** — and both are now FIXED IN CODE but **NOT YET MEASURED**.
+**PSW itself is DONE and MERGED** (`9fae4a1`, master, 38/38 tests, 0.10–0.19% of frame). No PSW code has been
+touched for two sessions. The live work is in sibling repos. **The session ended on an unresolved HARD FREEZE —
+that is the next job, ahead of everything else.**
 
-## Next Step — Mark refights (battle 1 measured NOTHING, see below), then we read the numbers
-Both fixes are built, deployed, and verified present in the live DLLs. What is missing is the A/B proof.
-**Nothing needs to be changed or re-deployed — just relaunch and fight.** The instruments are already armed.
+## Last Action
+Killed the frozen game, turned **every** perf/memory instrument OFF in `MapEventNullFix_v1.json`
+(`MissionTickGuard` crash protection left ON), and rolled back **nothing** — see the false lead below.
 
-Use the **`bannerlord-perf-sweep`** skill (it owns enable → battle → evaluate → **turn the flags back off**).
-Fight a 300v300 comparable to the baseline run, then compare against these baseline figures:
+## Next Step — the HARD FREEZE (2026-07-12 23:27). Stability outranks the leak and everything else.
+Use the **`bannerlord-crash-diagnose`** skill (multi-agent Opus). Do NOT hand-roll it. A freeze with no crash
+report, a fixed-address native null-deref, and a suspected stale-reference root is exactly its brief.
+Run **`bannerlord-backup`** before any destructive mitigation.
 
-| Owner | BEFORE | Expect AFTER |
-|---|---|---|
-| `RBM AgentStatusBar.UnitStatusMissionView.OnMissionTick` | **13.2%** (+56 ms worst hitch) | near-zero IF the bars are hidden; a partial drop if shown (see hypothesis below) |
-| `ArtemsCinematicCombat` (`CCShieldTauntTroopsData.OnMissionTick` 17.2% + `CinematicCombatMissionLogic` 4.5%) | **21.8%** | large drop on the taunt half; the 4.5% MissionLogic half is UNTOUCHED |
-| ProperShieldWalls | 0.149% | unchanged |
+### The evidence (all in `Configs/ModLogs/MapEventNullFix20260712.log`)
+- **Freeze:** last line `23:27:48` — an NRE suppressed by MissionTickGuard, then the log simply STOPS (main thread
+  stuck, not a clean crash). Stack: `ArtemsCinematicCombat.CinematicCombatMissionLogic.RegisterBlow →
+  ArtemCore.RegisterBlow → Agent.RegisterBlow → Agent.HandleBlow → Mission.OnAgentHit →
+  CustomBattleAgentLogic.OnAgentHit  ← NRE`
+- **6 AccessViolationExceptions (18/19/21/23h), IDENTICAL every time:** `FaultVA 0x00000000000000F8 (READ)`,
+  `TaleWorlds_Native+0x660135`, inside `Mission.Tick`. `0xF8` = **null pointer + field offset** — native reading a
+  field of a freed/absent object, at the SAME site each time.
 
-**BLSE will show a one-time unsigned-DLL CAUTION for `ArtemsCinematicCombatFork.dll` (a new, untrusted DLL
-name).** Accept it. If it is declined the module loads DISABLED and every number above is a false negative.
+### ⚠ FALSE LEAD — do not re-derive it (it nearly caused a wrong rollback)
+"That NRE is new today ⇒ our ACC fork regressed it" is **WRONG**. 12 of the 13 NRE hits are at **13:56–13:58**;
+the fork only went live at **16:23**, so the **ORIGINAL** ACC was doing it too. And "0 hits on 07-09/10/11" is
+**not** evidence of absence — `CustomBattleAgentLogic` only runs in **Custom Battles**, which Mark likely was not
+fighting those days. **The same caveat applies to the AVEs: "new today" is UNPROVEN, not established.**
 
-### ⚠ BATTLE 1 (2026-07-12 17:06) PRODUCED **ZERO** PERF DATA — do not go looking for its numbers
-`=== SESSION START ===` was **16:59:05**; the perf flags were written at **17:02:32**, i.e. 3.5 min AFTER the game
-had already loaded. The flags are `RequireRestart` (patched at `OnSubModuleLoad`), so they were read as `false`.
-Confirmed: **0** `PERFORMANCE REPORT` lines in that session (the 14:36 baseline has one).
+### UNVERIFIED HYPOTHESIS (label it as such) — the leak and the crashes may be ONE bug
+Something holds **stale Agent references across mission teardown** (proven: ~17-21 MB of dead agents survive each
+battle). A managed ref to an agent whose NATIVE side is freed would produce exactly this pair — a native null-deref
+at a fixed offset and NREs when vanilla touches a half-dead agent. **Not proven.** The static-root census names the
+holder if it is a static collection/event.
 
-**Root cause — now fixed in 3 places, do not reintroduce:** the "is the game running?" check grepped `tasklist` for
-`Bannerlord.exe`. **Mark launches via BLSE, so the process is `Bannerlord.BLSE.Standalone.exe`, which does NOT
-contain that substring** → false negative → a live config got edited under a running game. Correct check, now in
-global `CLAUDE.md` + the `bannerlord-perf-sweep` and `bannerlord-mod-build` skills:
-```bash
-/mnt/c/Windows/System32/tasklist.exe 2>/dev/null | grep -iE "bannerlord|taleworlds" || echo CLOSED
-```
+## The memory leak — REAL and REPLICATED (~17-21 MB/battle, managed)
+`MEMORY(retained)` `after-teardown` lines (forced collect, mission gone, `agents=0`), two independent sessions:
+`208.4 → 224.9 → 245.8` (+16.5, +20.9) and `210.5 → 227.4` (+16.9). ~17 MB ≈ **one battle's worth of Agents**, and
+it accumulates one dead battle at a time ⇒ a static root, not one stale copy.
 
-**Instruments are ARMED and must STAY ON until the sweep is actually read.** In `MapEventNullFix_v1.json`:
-`EnablePerformanceProfiling`, `EnableMissionBehaviorTiming` (**this** is the one emitting the per-mod owner table),
-`EnablePerfScopeLog` (persists the report), `EnableMemoryTracker` (5 s samples) = **true**;
-`EnableHarmonyPatchAttribution` deliberately **false** (attribution inflates the ms — that is why the baseline was
-trustworthy). The game is CLOSED and the JSON is valid, so **the next launch picks them up with no further edits.**
-**Turn them off only AFTER reading the results** (`bannerlord-perf-sweep` owns that teardown) — leaving them on is
-itself a hitch risk. The stale baseline is archived as `Configs/ModLogs/PerfScope20260712-BASELINE-1436.log`.
-
-### What battle 1 DID prove (not nothing)
-The game loaded all 85 mods with the fork in the load order, ran a full mission, and **exited cleanly — no crash,
-no StackOverflow.** That was the one real fear: the ILSpy base-cast artifact would have blown up at mission entry.
-PSW ran too (mission report present) but the census shows **only `Line`** — **no Square appeared**, so that item
-stays open.
-**UNCONFIRMED:** whether `ArtemsCinematicCombatFork` actually *loaded*. ACC writes nothing to any log, so disk
-evidence cannot settle it. Ask Mark whether he saw/accepted the BLSE unsigned-DLL CAUTION and whether cinematic
-kill-moves still fire. If it was declined the module loads **disabled**, which looks exactly like "the fix did nothing".
-
-### UNVERIFIED HYPOTHESIS — do not treat as fact (it sets the expected size of the RBM win)
-Mark says he keeps the unit status bars off ("disabled for realism, minimal UI"). But **RBMConfig contains NO
-status-bar/health-bar setting at all** (verified — and `UnitStatusMissionView` is added UNCONDITIONALLY at
-`SubModule.cs:153`, unlike its gated neighbours). So the setting he disabled does not map to anything found in
-RBM. The only in-code path that hides the bars is `UnitStatusVM._keyToggled` (Ctrl+H; initialised `true`, and the
-show-branch requires `!_keyToggled` — i.e. **hidden until toggled**), or `_escapeMenuOpened`.
-**Most likely** he simply never pressed the toggle. If so the old code was doing ~600 `WorldToScreen` projections
-per frame to render nothing, and the fix takes that method to ~zero. If the bars ARE somehow shown, the fix still
-helps (far agents no longer project) but the win is partial. **The sweep settles it — don't assert either way.**
-
-## What shipped (two repos, neither is PSW)
-- **RBMFork `720bdf0`** — `UnitStatusVM.RefreshAgentStatus` did `Agent.Position` + `MBWindowManager.WorldToScreen`
-  (native interop) + a `Distance` property-set **above** the visibility gate, for every agent every tick. Distance
-  changes every tick for a moving agent, so the change-guard never saved the `OnPropertyChanged` into Gauntlet.
-  Hoisted the cheap predicates above the expensive ones. **Not a throttle** — nothing visible is delayed or skipped;
-  it just stops computing screen coords for bars that were about to be hidden. (Matters because RBM Sprint C was
-  reverted as a throttle regression.) Deployed: `RBM.dll` sha `4f69c3e1…`, decompile-verified live.
-- **ArtemsCinematicCombatFork `be78af9`** (NEW repo, `~/AI/projects/ArtemsCinematicCombatFork`) — see below.
-
-## The ACC find (this is the big one)
-`CCShieldTauntTroopsData.OnMissionTick`, **every frame**: `Mission.Current.Agents.ToList()` (a fresh ~600-element
-list) + two more `ToList()` copies, then `ShieldTauntLogicAfterStart` on **every agent**, which probed membership
-with `List<Agent>.Contains` — an **O(n) linear scan**. Net: **O(agents × shield-bearers) per frame** plus 600+
-allocations/frame. That is the 17.2% and very likely a chunk of the GC churn in the open memory thread.
-
-**The `AIShieldTaunt` MCM setting does NOT gate any of it** — that check sits in `StartShieldTauntingEnemy`, which
-is called *after* the expensive loop. Turning the setting off buys ~nothing. Do not re-suggest it.
-
-Fix: HashSet membership mirrors (lists stay — `ShieldTauntSoundLogic`/`GetRandomElement` need `IReadOnlyList`),
-backwards index prune, direct iteration of `Mission.Agents`, one offhand-weapon read per agent. Behaviour-preserving.
+- **RULED OUT by reading:** the ACC fork's HashSet mirrors and its Agent dictionaries are **INSTANCE** fields,
+  cleared in `OnBattleEnded()`. Its only statics hold strings/Types. **Not the root — do not re-suspect them.**
+  (`CinematicCombatMissionLogic.Instance` / `CCMissionView.Instance` are static and never nulled, but each new
+  mission overwrites them ⇒ one stale mission retained, a CONSTANT, which cannot explain a per-battle CLIMB.)
+- **The instrument that finds it is BUILT + DEPLOYED** (`MapEventNullFix@f8e8725`): a static-root census at
+  `after-teardown` walking every static field of every non-framework assembly, reporting only what **GREW** since
+  the last battle (collections by `Count`, delegates by invocation-list length). Grep `STATIC-CENSUS`.
+  It got its **baseline only** — the freeze killed the run. **It is EXONERATED for the freeze** (it ran at 23:24:24;
+  the game played on 3 more minutes).
+  Needs **4+ back-to-back battles in ONE launch** (baseline at teardown 1, growth reports from teardown 2 on).
+- **`EnableMemoryTracker` is currently OFF.** Re-arm only once the freeze is understood.
 
 ## Key facts (durable)
-- **`src/ArtemsCinematicCombat.cs` is GENERATED — never hand-edit it.** `scripts/normalize.sh` = ILSpy 9.1 +
-  mechanical artifact transforms + `scripts/perf-fixes.patch`. Edits made only in `src/` are destroyed on the next
-  normalize. normalize.sh now ABORTS if the patch is missing (it used to skip it *silently*, which would ship a
-  stock-behaviour DLL that looked fine — that bug bit once already this session).
-- **The ILSpy `((Base)this).M()` artifact is a RUNTIME StackOverflow, not a compile error.** It emits `callvirt`, so
-  inside `M()`'s own override it re-enters itself forever. **A green build proves nothing.** IL-verified on the
-  deployed fork DLL: 0 self-recursive `callvirt`, 76 base calls correctly non-virtual.
-- Nothing depends on ACC in either direction (SubModule + assembly-string greps), so the Id/DLL rename is safe.
-- Upstream `Modules/ArtemsCinematicCombat/` is **left on disk, unselected** — rollback is a one-line LauncherData revert.
-- Fresh full backup taken this session (84 mods + Configs → `D:\Backup\Bannerlord BKP`).
-- **`gh` auth: FIXED PERMANENTLY.** A dead `ghp_` token exported from `~/.secrets/secrets.txt` shadowed the good
-  `gho_` credential in `hosts.yml` — `gh` prefers `$GITHUB_TOKEN` and never falls back, so every API call 401'd
-  while git-over-SSH kept working. The export is deleted; clean login shell verified (`gh api user` → `w1r3dh4ck3r`).
-  Written up in global `CLAUDE.md`. **Never re-add a `GITHUB_TOKEN` export.**
-- ACC fork **pushed**: https://github.com/w1r3dh4ck3r/ArtemsCinematicCombatFork (private).
+- **Metric trap:** the sampled `MEMORY`/`MEMORY(mission)` lines are `GC.GetTotalMemory(false)` = bytes **ALLOCATED,
+  no collection forced**. A rising floor in them proves NOTHING (a mission read 395.9 MB with `gen2=0`; a forced
+  collect found 265.2 MB actually live). **Only `MEMORY(retained)` can prove a leak.** The instrument now says so
+  in its own log output.
+- **Never send Mark to fight on an unverified instrument.** `bl-verify-armed MapEventNullFix --expect "…"` (exit 0
+  = armed). **After a RELAUNCH pass `--since "HH:MM:SS"`** — the mtime anchor can otherwise match a PREVIOUS
+  launch's `Hooked` line and give a stale VERIFIED. Documented in global `CLAUDE.md`.
+- **`bannerlord-live-config-guard.py`** (PreToolUse, global) BLOCKS writes to `Configs/ModSettings/**`,
+  `LauncherData.xml`, `Modules/**/bin/**` while the game runs, and **fails closed**. Deliberate; reasoned in
+  global `CLAUDE.md`. Escape: `touch /tmp/.claude-bl-config-approved` (5-min TTL).
+- **ACC rollback path:** the ORIGINAL `ArtemsCinematicCombat` module was archived out of the game folder to
+  `D:\Backup\Bannerlord BKP\Removed_ArtemsCinematicCombat_original_20260712` (130 MB). To restore: copy it back to
+  `Modules/`, set `IsSelected=true` for `ArtemsCinematicCombat` and `false` for `ArtemsCinematicCombatFork` in
+  `LauncherData.xml`. Nothing depends on ACC in either direction, so its load-order position does not matter.
+  The stock DLL is also committed at `~/AI/projects/ArtemsCinematicCombatFork/stock/`.
+- **Perf A/B (600 agents, measured):** RBM `AgentStatusBar` steady-state 20.1% → **0.59%** of frame (FIXED). ACC
+  `CCShieldTauntTroopsData` 10.7–22.2% → **~3%** in 7 of 8 battles (FIXED; battle 1 unimproved at ~21% — suspected
+  shield-heavy composition, residual O(n) per-taunter work, UNVERIFIED). PSW unchanged at ~0.15%.
+  The RBM 49–56 ms hitch is a **mission-LOAD** cost (all breaches land ~5 s before the mission baseline marker),
+  present before and after the fix — it was never the target. Don't re-litigate.
 
-## Still open (unchanged from last session)
-- **Memory long-battle capture** — INCONCLUSIVE, not clean. One 4.3-min battle caught exactly ONE GC cycle; a rising
-  floor within a cycle is normal, across cycles it is a leak, and one cycle cannot tell them apart. Needs a LONG
-  battle. The ACC fix above removes a major per-frame allocator, so **re-measure memory after it lands.**
-- **Square census** — the last PSW claim resting on a decompile argument. `DiagnosticLogging` is ON; the next battle
-  with a Square captures it automatically. Look for `Square spacing=0 interval=0.000 eligible=1` + a swap count.
-- **RTSCamera.CommandSystem** calls `Formation.get_CalculateHasSignificantNumberOfMounted` **213,684,301×** per battle.
-  Cost is UNMEASURABLE the way we measured (billed to the engine, not its owner). 0.26% is NOT an acquittal. Only an
-  A/B (disable the mod, same battle) prices it.
+## Still open (not started)
+- **`RTSCamera.RTSCameraLogic.OnAgentRemoved`** — 32 SLOW breaches, max 46.8 ms, the plurality of the run. Same mod
+  as the unresolved 213M-call `CalculateHasSignificantNumberOfMounted` (only an A/B can price it).
+- **Square census** — never captured. 9 missions on 07-12: only `Line`, `Loose`, `ShieldWall`. PSW
+  `DiagnosticLogging` is ON, so a Square battle captures it for free.
+- **Spear hysteresis** — deliberately NOT built. Only needed if a lone enemy at exactly the 2.0 m boundary makes a
+  spearman twitch. Enter 2.0 m / exit ~3.5 m if it ever shows up.
+- ACC fork docs (wiki page, project-docs set) still unwritten.
 
 ## Files to touch next
-Not PSW. `~/AI/projects/ArtemsCinematicCombatFork/scripts/{normalize.sh,perf-fixes.patch}` and
-`~/AI/projects/RBMFork/Source/RBM/RBM.AgentStatusBar/UnitStatusVM.cs` if the sweep says the fixes underdeliver.
-Skill docs for the fork (wiki page, project-docs CLAUDE/ARCHITECTURE/STACK/WORKFLOW) were NOT written — outstanding.
-
-<!-- session-state-sync: last written by session 5a48b925 at 2026-07-12 17:26:00 -0300 -->
+Freeze first — start from `Configs/ModLogs/MapEventNullFix20260712.log` (AVE + freeze stacks) via
+`bannerlord-crash-diagnose`. No source file is queued for edit; do not open one until the diagnosis names it.
