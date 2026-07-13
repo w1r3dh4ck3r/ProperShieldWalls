@@ -191,3 +191,63 @@ being the plan.
 Mark is fighting 5-6 battles now. Next session: snapshot at the main menu (leave the game RUNNING), read the
 `Mission` count, and take the same-launch `vmmap` pair — the native side (90 MB managed out of an 8.28 GB process)
 is still unpriced, and a native leak remains **unproven**, not disproven.
+
+---
+
+## 2026-07-13 (night, 2nd) — VALIDATION: the fixes work. The leak survives. And the bytes were never there.
+
+No PSW code touched (still `9fae4a1`). Post-fix snapshot: 6 battles, `psw_after2.gcdump`.
+
+### The fixes are good. All three roots are GONE from the heap.
+`advanceScaleStartStorage`/`advanceTimerStorage`, `MemoryTracker._lastMission` and vanilla `_missionSpawnLogic` no
+longer root anything. RBMFork `ed216a3` and MapEventNullFix `7f6a3b2` do exactly what they were written to do.
+
+### And 6 Missions were still retained after 6 battles. Still 1:1.
+Three MORE roots were hiding underneath: **`[StrongHandle]`** (a GC handle — native interop holding a
+`List<Formation>`; dominant, 3 of 5 sampled), `FormationFilter...CustomFormationItemVM._mixinReverseDictionary`,
+and `ArtemsCinematicCharges.SprintMixin.<Instance>`.
+
+**A multi-rooted leak hides its own roots.** A spanning tree shows ONE parent per node, so while RBMAI held every
+Mission the other holders were redundant and *invisible*. Fix the top layer, the next appears. **Expect to peel a
+leak, never to one-shot it** — and never promise "this fixes it" from a single root.
+
+The pre-registered success bar (*"the count must stop tracking the battle count"*, NOT "zero") is the only reason
+this got called honestly instead of as a partial win. Setting the bar **before** the run is what made it binding.
+
+### The finding that ends the hunt: THE BYTES WERE NEVER THERE
+| retained Missions | total managed heap |
+|---|---|
+| 3 (3 battles) | 86.5 MB |
+| 6 (6 battles) | 86.9 MB |
+
+**Doubling the retained Missions cost 0.4 MB.** The husks are near-empty shells (~22 Agents each). This **refutes
+the "each husk weighs ~26 MB" claim that this project carried as ESTABLISHED FACT for five sessions** — it came
+from `MemoryTracker`'s forced-collect `GC.GetTotalMemory`, and it never reconciled with PerfView's ~87 MB total
+heap (a 3x gap the advisor flagged this morning and I did not chase). **Even a forced-collect counter is an
+in-process guess; the heap dump is ground truth.**
+
+Native plateaus too: **6.64 GB fresh menu → 8.28 GB after 3 battles → 8.40 GB after 6.** Three more battles cost
+**+0.12 GB**. A ~500 MB/battle native leak would have put the 6-battle run near 9.8 GB. It is a one-time
+first-mission warm-up (~1.6 GB of scene/asset cache), then flat. *(Caveat: three different launches. Strong, not
+airtight.)*
+
+### The real root cause was the QUESTION, not the code
+I asked Mark what user-visible symptom started all this. **"I really don't know the symptom that started all
+this!"** Six sessions. Many battles he had to fight. Several bespoke in-process instruments. A 21-agent workflow.
+For an object leak that costs **hundreds of KB against an 8.4 GB process**.
+
+**A hunt with no symptom has no magnitude test — so nothing can ever refute it, and it cannot terminate.** Every
+suspect stays alive, every growing counter looks damning, and each "root" yields a tempting one-line fix that
+recovers nothing. That is the whole story of this bug, and it outranks every technique lesson learned along the
+way (the metric traps, counts-vs-bytes, get-a-profiler) — all of those were only *needed* because the hunt could
+not end. **Write down the symptom before you hunt. If nobody can name one, don't start.**
+
+### Kept anyway (they are real bugs, just not THE bug)
+The three fixes stay: unbounded object retention is a genuine defect, and the vanilla `_missionSpawnLogic` one is a
+**correctness** bug independent of memory — assigned only-when-null and never reset, so every battle after the
+first reads a stale spawn logic belonging to a dead mission.
+
+### Next
+**Nothing. The hunt is closed** — do not reopen without a symptom. Turn `EnableMemoryTracker` OFF (its forced
+per-mission GC is not free). The **2026-07-12 hard freeze remains unresolved and is a separate bug**; it has not
+recurred in ~23 battles and still has no dump.
