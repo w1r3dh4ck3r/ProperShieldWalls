@@ -1,117 +1,61 @@
 # Session State — ProperShieldWalls
 
 ## Current Task
-**PSW itself is DONE and MERGED** (`9fae4a1`, master, 38/38 tests, 0.10–0.19% of frame). No PSW code touched for
-five sessions. All live work is in sibling repos (`MapEventNullFix`, `ArtemsCinematicCombatFork`).
+**PSW itself is DONE and MERGED** (`9fae4a1`, master, 38/38 tests). No PSW code touched for six sessions; this repo
+is now just the handoff home. Live work is in `RBMFork` and `MapEventNullFix`.
 
-Open: **(1) the per-battle memory leak** — one root NAMED this session, the main one still unnamed; **(2) the
-2026-07-12 hard freeze** — still needs one manual process dump.
+**The per-battle memory leak is ROOTED and three fixes are DEPLOYED.** Only in-game validation remains.
+Full domain knowledge lives in the wiki: **`bannerlord-memory-leak-census`** — read it before touching this.
 
-## ⚠ METHOD CHANGE (Mark's call, 2026-07-13). READ THIS BEFORE BUILDING ANYTHING.
-Mark: *"Are we not chasing our own tail? Many battles and no answer. See if there is a better way — maybe a
-debugger."* **He was right, and the critique is about METHOD.** Six sessions of hand-built in-process probes
-extracted roughly **one bit of information per battle Mark fought**. A heap profiler returns the whole object graph
-— every object, its retained size, and the exact reference chain keeping it alive — in **one snapshot, zero code,
-zero extra battles**.
+## Last Action
+A PerfView heap snapshot (main menu, after 3 battles, PID 17708) named the roots in ONE snapshot, zero extra
+battles. Root: **`RBMAI.OverrideBehaviorAdvance.advanceScaleStartStorage`**, a never-cleared
+`static Dictionary<Formation,float>` — and `Formation.Team` → `Team.Mission` means one stale Formation roots the
+ENTIRE dead Mission. Fixes deployed + sha-verified in the live DLLs, **not committed until validation** (see below):
+- **RBMFork** — `Utilities.ClearAllFormationCaches()` (20 caches) called from `RBMAIPatchLogic.OnRemoveBehavior()`.
+- **MapEventNullFix v3.11.27** — `_lastMission`/`_mission` → weak; new `CustomBattleBannerBearersSpawnLogicLeakFixPatch`
+  nulls the vanilla `_missionSpawnLogic` at `Mission.EndMission`.
 
-**DO NOT build another in-process probe.** The next move is a profiler, and it is already installed and tested.
+Mark is fighting the validation battles NOW (started 2026-07-13 ~18:40). **Results are pending — do not assume PASS.**
 
-### The tools are DOWNLOADED and VERIFIED WORKING, in `C:\Users\w1r3d\Tools\`
-- **`PerfView.exe`** (Microsoft, free, portable, no installer, v3.2.4). Its *Goto callers (F10)* view "summarizes
-  **paths to the GC roots**, which indicate why the object is still alive" (MS User's Guide) — literally our
-  unanswered question. **CLI verified driveable from WSL:**
-  ```bash
-  cd /mnt/c/Users/w1r3d/Tools && ./PerfView.exe -noGui -AcceptEula HeapSnapshot <PID> out.gcdump
-  ```
-  The output file is **POSITIONAL** — `-o` is rejected (`Unexpected qualifier`). May need **admin**. It briefly
-  **freezes the target**, so snapshot at the **MAIN MENU, never mid-battle**.
-- **`vmmap64.exe`** (Sysinternals, free, attaches live, no restart). Splits memory into Heap / Private Data /
-  Mapped File / Image and diffs snapshots. `./vmmap64.exe -accepteula -p <PID> "C:\path\out.csv"`.
+## Next Step — READ THE RESULT OF THE VALIDATION RUN
+**⚠ THE SUCCESS BAR IS NOT "0 RETAINED MISSIONS".** The two single-slot roots each keep pinning ≤1 Mission, so a
+*working* fix still leaves ~1–2. **The bar: the retained-Mission count must STOP TRACKING the battle count.**
 
-### ⚠ THE GAME PROCESS IS `Bannerlord.BLSE.LauncherEx.exe`, NOT `...Standalone.exe`
-Verified live 2026-07-13: PID 9604, window title `Mount and Blade II Bannerlord - Singleplayer`. **Several docs
-(incl. the manual-dump instructions) name `Bannerlord.BLSE.Standalone.exe` — that process does not exist on this
-box.** Always match the FAMILY: `tasklist.exe | grep -iE "bannerlord|taleworlds"`.
+1. Confirm the game is at the **main menu and still RUNNING** (this step has been lost twice — he closes it).
+   `tasklist.exe | grep -iE "bannerlord|taleworlds"` → the process is **`Bannerlord.BLSE.LauncherEx.exe`**.
+2. Snapshot (needs **Admin** → UAC prompt Mark clicks; output path is POSITIONAL):
+   `powershell.exe -NoProfile -Command "Start-Process -FilePath 'C:\Users\w1r3d\Tools\PerfView.exe' -ArgumentList '-noGui','-AcceptEula','-LogFile:C:\Users\w1r3d\Tools\snap2.log','HeapSnapshot','<PID>','C:\Users\w1r3d\Tools\psw_after2.gcdump' -Verb RunAs"`
+3. Also take `vmmap` **in the same launch** (before AND after) — the native side is still unpriced and this is free
+   to collect: `vmmap64.exe -accepteula -p <PID> "C:\Users\w1r3d\Tools\vm2.csv"`.
+4. Analyze: rebuild/run the analyzer (below) and read the exact-match count of `TaleWorlds.MountAndBlade.Mission`.
+   - **PASS:** count stays ≤2 after 5–6 battles instead of climbing to 5–6. `Formation` count stops growing 20/battle.
+   - **FAIL:** count still tracks battles ⇒ another accumulating root; use `RefGraph` to find which static reaches
+     ALL missions (do NOT trust `SpanningTree`, it shows one parent per node and it fingered the wrong static once).
+5. **On PASS only:** commit the three dirty repos, turn `EnableMemoryTracker` OFF (its forced per-mission GC is not
+   free), and close this out.
 
-## Next Step — ONE run with the profiler. This should end the managed hunt.
-1. Mark launches, reaches the **main menu**, says so. → take `vmmap` baseline.
-2. Mark fights **3 back-to-back battles**.
-3. Mark returns to the **main menu** and **LEAVES THE GAME RUNNING** (this is the step that failed last time —
-   he closed it, and the snapshot was lost).
-4. → take `PerfView HeapSnapshot <PID>` + a second `vmmap`. Then find what roots the dead `Mission`.
+## The analyzer (this is the tool — do not build another in-process probe)
+`<scratchpad>/gcanalyze/` — .NET 8 console app; reads a `.gcdump` via `GCHeapDump`/`RefGraph`/`SpanningTree` inside
+`dotnet-gcdump.dll`. **The scratchpad is session-scoped and WILL be gone** — the wiki page documents how to rebuild
+it in ~30 lines (namespaces, the `ForEach`-before-`Parent` gotcha, the referrer idiom). Prior snapshot kept at
+`C:\Users\w1r3d\Tools\psw_after.gcdump` — re-analyzable offline forever, no game needed.
 
-A baseline `vmmap` at the main menu already exists at `C:\Users\w1r3d\Tools\vm_before.csv` (2026-07-13 17:22, KB
-committed): **Total 6.64 GB · Private Data (native VirtualAlloc) 5.28 GB · native Heap 0.31 GB · Managed Heap
-0.26 GB.** It has **no matching "after"** — the game was closed first. Retake both halves in one launch.
-
-## What is ESTABLISHED (measured, replicated — do not re-derive)
-- **A whole dead `Mission` is retained every battle.** `MISSION-RETENTION` climbs `1,2,3` in three separate
-  launches, measured with `WeakReference`s after a forced 2-pass collect. It is real.
-- **Each retained husk weighs ~26 MB**, and that IS the managed leak: `Retained` tracks the retention count 1:1
-  (`ret=1 → 209.7 MB`, `ret=2 → 235.5 MB`, `ret=3 → 252.2 MB`). `Mission.FreeResources()` nulls `_allAgents` but
-  the Mission still holds **`MissionBehaviors`, which is never cleared** — that is where the weight sits.
-- **NAMED ROOT #1 — `TacticalPosition`, a registration bug in the engine's own ledger.** Every `DotNetObject`
-  registers itself in the static `DotNetObject.DotnetObjectReferences` dict by a **strong** ref, with
-  `ReferenceCount = 0`. Removal happens in **exactly one place** — `DecreaseReferenceCount`, and only when a
-  decrement reaches 0. The refcount split proves the mechanism: **`rc=0` grows (864 → 1182) while `rc>0` stays
-  frozen at 44.** Nothing ever increments them ⇒ no decrement ever fires ⇒ **they can never be removed.**
-  Monotonic across 3 battles (+420, +534, +318). **Its managed bytes are trivial** — its significance is that it
-  may hold `GameEntity` wrappers and thus native scene data. **THAT CHAIN IS UNVERIFIED. Do not assert it.**
-
-## ⚠ CORRECTION — I over-claimed a native leak. Do not inherit it as fact.
-Two prior handoffs said *"native `Private` grows +150–200 MB/battle, ~6–10× the managed leak — we are chasing the
-tip of the iceberg."* **That is NOT supported.** This run: after-teardown `Private` went **7306.4 → 7616.2 →
-7563.3 MB** — **up, then DOWN**. `Private` is noisy and includes reserved/uncommitted regions; two earlier runs
-happened to rise monotonically and I read a leak into them. **A native leak is UNPROVEN.** The VMMap before/after
-diff is the only thing that can settle it — that is why step 3 above matters.
-
-## RULED OUT as the Mission's rooter — do not re-suspect (each killed by an instrument, not an argument)
-- **`DotnetObjectReferences`** — the stranded Mission is **NOT in it** (direct membership test, 3 launches).
-- **`MissionGauntletSingleplayerOrderUIHandler`** — reports `mission=null`. Vanilla nulls `MissionBehavior.Mission`
-  at teardown (`RemoveMissionBehavior`). It pins an empty husk. Its unsubscribe bug is real (`GauntletOrderUIHandler`
-  subscribes in `OnMissionScreenActivate`, unsubscribes only in `OnMissionScreenDeactivate`, no finalize override)
-  but is worth **kilobytes**. **Do not ship it as a leak fix.**
-- **`FormationFilter`'s OoB VMs** — reach a Mission only via `_bannerBearerLogic.Mission`, the same nulled field.
-- **`InputKeyItemVM`** (+12/battle) — fields are 2 strings, a `TextObject`, bools. Kilobytes. Refuted by arithmetic.
-- **`RBMAI` Formation-keyed statics** — real never-cleared leak, arithmetically far too small.
-- **`TacticalPosition`** — `MissionObject.Mission` is a computed `=> Mission.Current`, not a field.
-
-## Still open (named so they are not silently dropped)
-- **`HarmonySharedState.originals` +230/battle** ⇒ something re-patches Harmony every mission. Small bytes, genuine
-  bug. **Likely US:** `MapEventNullFix.SubModule.OnMissionBehaviorInitialize` calls `TryApplyPatch` every mission by
-  design. **UNVERIFIED** — check before blaming another mod.
-- **`Agent.Clear()` has still never been read** (two greps hit `DetachmentManager.Clear()` instead). It matters for
-  what a retained husk actually weighs.
-- **The 07-12 freeze.** Has not recurred in ~14 battles ⇒ intermittent, not load-gated. Still **no dump**. At the
-  next freeze: note per-core CPU (a pinned core = spin, ~0% = deadlock), then Task Manager → right-click the
-  **`Bannerlord.BLSE.LauncherEx.exe`** process → *Create dump file*, **THEN** kill. **Never automate this
-  in-process** — a self-dump is what froze the game once already.
-- **ACC slow-motion gate: CLOSED 2026-07-13 — Mark's call, "I don't use slow motion, it never bit us."** Do not
-  re-open or re-ask. Recorded because a contradiction was surfaced and NOT silently resolved: the live config
-  actually has **`"masterStrikeSlowmotion": true`** (`ModSettings/Global/ArtemsCinematicCombat/…json:23`) — Mark was
-  most likely thinking of **DismembermentPlus**, whose `"SlowMotion": false`. Closing anyway is safe on the code:
-  only the **add** is gated (IL: `AddTimeSpeedRequest` ×1 gated, `RemoveTimeSpeedRequest` ×3 untouched) and ACC's
-  masterstrike path already returns unless `affectedAgent == Agent.Main`, so in first/third person `IsMine` is true
-  and slow-mo behaves exactly as before. **No regression path exists**; the gate can only suppress the 0.2× drop
-  while the AI drives his body in free-cam. ~14 battles on that build, no complaint. The **camera** half is
-  VALIDATED in-game ("the fix to the killmoves worked").
+## Key facts (durable — the rest is in the wiki)
+- **The LIVE RBM fork is `~/AI/projects/RBMFork`. `RealisticBattleAiPerf` is RETIRED** (its own `SUPERSEDED.md`);
+  the game's `Modules/` has no `RBM` dir. A fix deployed there is a **silent no-op**. `RBM_WS_Fork` and
+  `SmartRBMpatch` are enabled but ship **no DLLs** (XML only) — no duplicate-assembly conflict.
+- **Uncommitted on purpose:** `RBMFork` (2 source files + notes.md) and `MapEventNullFix` (v3.11.27) are dirty,
+  deployed, and sha-verified. Committed at wrap-up; NOT yet proven in-game.
+- **The 07-12 hard freeze** is still unresolved and has not recurred in ~17 battles. Still **no dump**. At the next
+  freeze: note per-core CPU (pinned core = spin, ~0% = deadlock), then Task Manager → right-click
+  **`Bannerlord.BLSE.LauncherEx.exe`** → *Create dump file*, **THEN** kill. **Never automate this in-process** — a
+  self-dump froze the game once already.
 - **Square census** (PSW) — never captured; `DiagnosticLogging` is ON, so a Square battle captures it free.
-- **`EnableMemoryTracker` is still ON.** Turn it OFF once the root is named — its forced per-mission GC is not free.
+- **ACC:** camera fix VALIDATED in-game. Slow-mo gate CLOSED (Mark's call). Rollback module archived at
+  `D:\Backup\Bannerlord BKP\Removed_ArtemsCinematicCombat_original_20260712`.
 
 ## Files to touch next
-**Nothing is queued for edit, deliberately — the next input is a PROFILER SNAPSHOT, not code.** Re-Read
-`~/AI/projects/MapEventNullFix/MapEventNullFix/Patches/MemoryTracker.cs` before touching it (compaction wipes
-read-state). Live: `MapEventNullFix@872b4c1` (v3.11.26), deployed + sha-verified.
-
-## Key facts (durable)
-- **Count trap:** the census reports **ENTRY COUNTS, NOT BYTES.** Rank suspects by what they can HOLD, never by how
-  fast they GROW. This project has now nearly shipped **four** wrong "roots" by ranking on growth.
-- **Metric trap:** `MEMORY`/`MEMORY(mission)` lines are `GC.GetTotalMemory(false)` = bytes **ALLOCATED**. Only
-  `MEMORY(retained)` (forced collect) can prove a leak. And **`Private` is noisy — see the correction above.**
-- **`BannerlordAIDebugger` is a CRASH-telemetry gateway** (`AppDomain.UnhandledException` → MCP). It cannot see the
-  heap or native memory. **Wrong tool for a leak.**
-- **Never send Mark to fight on an unverified instrument:** `bl-verify-armed MapEventNullFix --expect "…"`; after a
-  RELAUNCH pass `--since "HH:MM:SS"`.
-- **ACC rollback:** original module archived at `D:\Backup\Bannerlord BKP\Removed_ArtemsCinematicCombat_original_20260712`.
-
-<!-- session-state-sync: last written by session 280e86d6 at 2026-07-13 17:40:41 -0300 -->
+**Nothing is queued for edit — the next input is a SNAPSHOT, not code.** If validation FAILS, the files are
+`RBMFork/Source/RBMAI/RBMAI/Utilities.cs` and `RBMFork/Source/RBM/RBM/RBMAIPatchLogic.cs`.
+Re-Read before editing — compaction wipes read-state.

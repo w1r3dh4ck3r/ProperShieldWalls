@@ -127,3 +127,67 @@ Bannerlord - Singleplayer*). Multiple docs — including the manual-dump instruc
 **One profiler run.** Main menu → vmmap baseline → 3 back-to-back battles → back to main menu → **leave the game
 RUNNING** (it was closed last time, and the snapshot was lost) → `PerfView HeapSnapshot` + vmmap #2. That answers
 "what roots the dead Mission" outright, and prices the native side honestly for the first time.
+
+---
+
+## 2026-07-13 (late) — the leak is ROOTED. One profiler snapshot did what six sessions of probes could not.
+
+No PSW code touched (still `9fae4a1`). Work is in `RBMFork` and `MapEventNullFix` v3.11.27.
+
+### Mark's method call was the whole session
+He said it last session — *"are we not chasing our own tail? maybe a debugger"* — and this session proves it.
+**One PerfView heap snapshot, taken at the main menu after 3 battles, cost ZERO extra battles and named the roots
+outright.** Six sessions of hand-built in-process probes had been extracting roughly one bit per battle he fought.
+The whole hunt collapsed in about forty minutes of tool work.
+
+### The root, and why we had already "refuted" it
+**`RBMAI.OverrideBehaviorAdvance.advanceScaleStartStorage`** — a `static Dictionary<Formation,float>`, never
+cleared. **The edge that carries the weight is `Formation.Team` -> `Team.Mission`.** One retained Formation roots
+the *entire* dead Mission, so **2 leftover dict keys per battle cost ~17-26 MB**. Snapshot: 3 retained Missions,
+63 Formations = exactly 20 per Mission x 3 battles.
+
+**Last session refuted this exact suspect by arithmetic — and the arithmetic was done on the wrong graph.** It
+argued a dead agent leaves its formation, so a retained Formation roots only its *survivors* (52, 105 agents),
+"arithmetically incapable" of 17 MB. It never checked `Formation.Team`. A confident, quantitative, *wrong*
+refutation nearly buried the answer for good. **Rank a suspect by what it can REACH on the real object graph —
+not by what you reason it ought to hold, and not by how fast it grows.**
+
+### The trap that would have shipped a wrong fix AGAIN
+`SpanningTree` (PerfView's path-to-root) shows **one parent per node**, and it fingered **`advanceTimerStorage`**.
+I wrote that into the handoff and told Mark. It is **wrong** — following the static's *own child edge* with
+`RefGraph` shows `advanceTimerStorage` reaches ONE Mission; the sibling `advanceScaleStartStorage` reaches all
+three. The source agreed independently: `advanceTimerStorage.Remove(...)` exists at the old repo's `:1693`,
+`advanceScaleStartStorage` has **no `.Remove()`/`.Clear()` anywhere**. Heap and source converged from opposite
+directions. **Never name a root from a spanning tree alone.**
+
+### Two more roots, one of them ours, one of them vanilla
+- **Ours (4th time an instrument was part of the bug):** `MemoryTracker._lastMission` was a **strong** static
+  `Mission`. It also **biased its own measurement** — the retention counter uses `WeakReference`s, so the newest
+  Mission always *looked* retained because the tracker held it. The same file wraps `_seenMissions` in a
+  `WeakReference` with a comment saying the list *"can never be the thing keeping a Mission alive"*, then holds
+  the scalar strongly. The list was protected; the scalar leaked.
+- **Vanilla:** `CustomBattleBannerBearersModel._missionSpawnLogic` is a private static assigned **only when null**
+  and **never reset** (0 hits for `= null` in the whole assembly). It pins battle #1's Mission for the life of the
+  process — **and every later battle reads a stale spawn logic belonging to a dead mission.** A correctness bug we
+  found while chasing memory.
+
+### The near-miss that would have been the worst outcome
+I sent the fix agent to **`RealisticBattleAiPerf`** — a **retired** repo. The game loads **`RBMFork`**; `Modules/`
+has no `RBM` directory at all. The agent caught it. Had it not, we would have shipped a build that changed
+**nothing**, and "validated" it against a leak that was never touched. **Check which repo is LIVE before fixing it.**
+
+### The fix, and the bar it must clear
+`RBMFork`: `Utilities.ClearAllFormationCaches()` (20 Formation-/Agent-keyed statics) from
+`RBMAIPatchLogic.OnRemoveBehavior()`. **Inventory finding worth keeping:** many of those caches were being cleared
+at mission **START**, not END — which reads as correct in source and is useless, because it leaves every cache full
+while sitting at the **main menu between battles**, which is exactly the window a snapshot samples.
+
+**The validation bar is NOT "0 retained Missions".** The two single-slot roots each keep pinning one Mission
+regardless, so a *working* fix still leaves ~1-2. **The bar: the retained count must stop tracking the battle
+count.** Expecting zero would make a working fix look broken — and that misread was one advisor call away from
+being the plan.
+
+### Next
+Mark is fighting 5-6 battles now. Next session: snapshot at the main menu (leave the game RUNNING), read the
+`Mission` count, and take the same-launch `vmmap` pair — the native side (90 MB managed out of an 8.28 GB process)
+is still unpriced, and a native leak remains **unproven**, not disproven.
