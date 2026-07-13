@@ -2,43 +2,86 @@
 
 ## Current Task
 **PSW itself is DONE and MERGED** (`9fae4a1`, master, 38/38 tests, 0.10–0.19% of frame). No PSW code has been
-touched for two sessions. The live work is in sibling repos. **The session ended on an unresolved HARD FREEZE —
-that is the next job, ahead of everything else.**
+touched for three sessions. The live work is in sibling repos. **The 2026-07-12 hard freeze is now DIAGNOSED
+(2026-07-13) and waiting on ONE free piece of evidence from Mark — a process dump at the next freeze.**
 
 ## Last Action
-Killed the frozen game, turned **every** perf/memory instrument OFF in `MapEventNullFix_v1.json`
-(`MissionTickGuard` crash protection left ON), and rolled back **nothing** — see the false lead below.
+Diagnosed the freeze (21-agent Fable workflow), then **built + deployed the instrument it asked for**:
+**MapEventNullFix v3.11.22** (`2869d65`, pushed, live DLL sha `a6befdc8`) — `CrashDumper` (minidump on native AVE,
+taken from the VEH) + `TickWatchdog` (dumps the process during a 30 s tick stall). Both **default ON**.
+`EnableMemoryTracker` deliberately left **OFF** — see below.
 
-## Next Step — the HARD FREEZE (2026-07-12 23:27). Stability outranks the leak and everything else.
-Use the **`bannerlord-crash-diagnose`** skill (multi-agent Opus). Do NOT hand-roll it. A freeze with no crash
-report, a fixed-address native null-deref, and a suspected stale-reference root is exactly its brief.
-Run **`bannerlord-backup`** before any destructive mitigation.
+## Next Step — MARK IS FIGHTING BACK-TO-BACK BATTLES TO TRIGGER THE FREEZE. Read the result.
+**FIRST, before trusting anything: verify the instrument actually armed at runtime.** It is `RequireRestart` and
+has never run in the field. On the next launch the ModLog must contain `TickWatchdog: armed` and (on a fault)
+`CrashDumper: WROTE …`:
+```bash
+grep -nE "TickWatchdog: armed|CrashDumper" "/mnt/c/Users/w1r3d/Documents/Mount and Blade II Bannerlord/Configs/ModLogs/MapEventNullFix$(date +%Y%m%d).log"
+```
+**No arm line ⇒ the run captured nothing; do not read anything into a missing dump.**
 
-### The evidence (all in `Configs/ModLogs/MapEventNullFix20260712.log`)
-- **Freeze:** last line `23:27:48` — an NRE suppressed by MissionTickGuard, then the log simply STOPS (main thread
-  stuck, not a clean crash). Stack: `ArtemsCinematicCombat.CinematicCombatMissionLogic.RegisterBlow →
-  ArtemCore.RegisterBlow → Agent.RegisterBlow → Agent.HandleBlow → Mission.OnAgentHit →
-  CustomBattleAgentLogic.OnAgentHit  ← NRE`
-- **6 AccessViolationExceptions (18/19/21/23h), IDENTICAL every time:** `FaultVA 0x00000000000000F8 (READ)`,
-  `TaleWorlds_Native+0x660135`, inside `Mission.Tick`. `0xF8` = **null pointer + field offset** — native reading a
-  field of a freed/absent object, at the SAME site each time.
+**Then:** look for `Configs/ModLogs/menf_freeze_*.dmp` (the freeze) and `menf_ave_*.dmp` (the native walker).
+A dump is the ONLY thing that settles where the main thread parks. Analyse in WinDbg (`~*k` for all thread stacks,
+`!clrstack` under SOS). Also ask Mark for per-core CPU at the freeze — a pinned core says spin, ~0% says deadlock.
+If the watchdog logged `ticking RESUMED — that stall was NOT a freeze`, that dump is a false alarm; discard it.
 
-### ⚠ FALSE LEAD — do not re-derive it (it nearly caused a wrong rollback)
-"That NRE is new today ⇒ our ACC fork regressed it" is **WRONG**. 12 of the 13 NRE hits are at **13:56–13:58**;
-the fork only went live at **16:23**, so the **ORIGINAL** ACC was doing it too. And "0 hits on 07-09/10/11" is
-**not** evidence of absence — `CustomBattleAgentLogic` only runs in **Custom Battles**, which Mark likely was not
-fighting those days. **The same caveat applies to the AVEs: "new today" is UNPROVEN, not established.**
+**Full report: `~/AI/projects/MapEventNullFix/docs/freeze-2026-07-12-diagnosis.md`** (adversarially verified,
+Medium confidence). Fix-plan **steps 2-6 remain UNAUTHORIZED** — three refuters independently killed the claim that
+the NRE-fix package prevents the freeze, so shipping it before the dump would make a clean battle weak evidence.
 
-### UNVERIFIED HYPOTHESIS (label it as such) — the leak and the crashes may be ONE bug
-Something holds **stale Agent references across mission teardown** (proven: ~17-21 MB of dead agents survive each
-battle). A managed ref to an agent whose NATIVE side is freed would produce exactly this pair — a native null-deref
-at a fixed offset and NREs when vanilla touches a half-dead agent. **Not proven.** The static-root census names the
-holder if it is a static collection/event.
+**`EnableMemoryTracker` is OFF on purpose.** The static-root census wants exactly this back-to-back run, but its
+forced per-mission GC adds a timing variable to an intermittent freeze repro. The freeze outranks the leak. Arm it
+on a LATER run, once the freeze is captured.
 
-## The memory leak — REAL and REPLICATED (~17-21 MB/battle, managed)
+### Not yet done (named so it is not silently dropped)
+- **The `HighLoadAgentThreshold = 800` gate** — every observed AVE fires at 406–780 entities, so the anti-crash dt
+  cap (`MaxDtHighLoad = 0.020f`) has **never once engaged**. A one-constant change, deliberately NOT made: if
+  freezes then stop we would not know why, and if they don't we learn nothing. Do it AFTER the dump.
+- **The boot marker** in `MapEventNullFix.SubModule` that would close `bl-verify-armed`'s known relaunch hole
+  (global `CLAUDE.md` documents it). Still not built.
+
+### What the freeze IS
+The main thread stops inside **native `Mission.Tick`** — most plausibly the *non-faulting* flavor of the same
+freed-object walk that throws the AVEs. Unmapped memory ⇒ it faults and the guard recovers it (7/7). **Mapped
+garbage ⇒ the same walk silently loops** — no exception, nothing logs, process alive and stuck. That is exactly
+what the log shows. (Spin vs. barrier-wait is UNVERIFIED; only a dump can say.)
+
+### THREE bugs, not one — do NOT ship a unified "stale-agent" fix
+1. **The native walker**, `TaleWorlds_Native+0x660135`, `FaultVA 0xF8` (READ). **SEVEN** AVEs on 07-12 across
+   **four launches** — plus 4 more on 07-08, so it is **at least 4 days old, not new**.
+2. **The managed NRE.** ACC's `ApplyKillMoveLogic` never validates `agent.Key` (the affector) across 121 synthetic
+   `RegisterBlow` sites, with no agent-removal cleanup; vanilla `CustomBattleAgentLogic.OnAgentHit` has exactly
+   **three unguarded dereferences** (`affectedAgent.Team`, `affectorAgent.Team`, `affectorAgent.Origin`). A real
+   bug — but its causal role in the freeze is **n=1 and NOT established**.
+3. **The ~17-21 MB/battle leak is INERT.** RBMAI's stale `Agent` keys are **never dereferenced** (only `item.Value`
+   is read), so the leak **cannot** cause the AVE or the NRE. It is a separate bug; the census still names its root.
+
+### RULED OUT — do not re-chase
+- **The guard is NOT the freeze.** Exactly **ONE** MissionTickGuard NRE suppression exists in the whole
+  157,656-line day log. A suppression spin or logging-cost collapse would have produced spam, not silence.
+- **"Stale agents surviving teardown" is NOT required** — one AVE fired in the **first battle of a fresh launch**.
+  This kills the old unified theory that the leak and the crashes are one bug.
+- **Turning MissionTickGuard OFF is a BAD experiment**: the freeze is non-faulting, so there is no exception to
+  convert into a crash — it would leave the freeze equally silent while turning recoverable AVEs into CTDs.
+- **GPU/TDR**: the seven `Kernel_141` WER folders are old (their identical dir mtime is a WER flush, not the event
+  time); the Windows System log has **zero** TDR events in two days.
+
+### ⚠ AN INHERITED PREMISE THAT IS NOT VERIFIED — check it before touching ACC
+The "12 of 13 NRE hits at 13:56–13:58 predate the fork ⇒ the ORIGINAL ACC did it too" claim — the **sole basis for
+exonerating our ACC fork** — has an **UNLOCATED SOURCE**. This day-log contains exactly ONE suppression, so those
+13 hits are not in it. The exoneration may still be right, but it is **inherited, not verified**. Relocate those
+hits before acting on ACC.
+
+## The memory leak — REAL and REPLICATED (~17-21 MB/battle, managed) — but INERT
 `MEMORY(retained)` `after-teardown` lines (forced collect, mission gone, `agents=0`), two independent sessions:
 `208.4 → 224.9 → 245.8` (+16.5, +20.9) and `210.5 → 227.4` (+16.9). ~17 MB ≈ **one battle's worth of Agents**, and
 it accumulates one dead battle at a time ⇒ a static root, not one stale copy.
+
+**It cannot cause the freeze, the AVEs or the NRE** (2026-07-13): the leaked `Agent` keys are **never
+dereferenced**. Prime suspect for the root is **RBMAI's Agent-keyed statics** (`Tactics.agentDamage` + siblings,
+cleared only at the NEXT mission's `EarlyStart`) — but `BattleStatsLogic.cs:96-136` touches only `item.Value`, so
+the stale keys never re-enter native code. Fix it as its own bug, and **only after the census names the root** —
+shipping a clear before that is exactly the over-claiming this project keeps paying for.
 
 - **RULED OUT by reading:** the ACC fork's HashSet mirrors and its Agent dictionaries are **INSTANCE** fields,
   cleared in `OnBattleEnded()`. Its only statics hold strings/Types. **Not the root — do not re-suspect them.**
@@ -84,5 +127,16 @@ it accumulates one dead battle at a time ⇒ a static root, not one stale copy.
 - ACC fork docs (wiki page, project-docs set) still unwritten.
 
 ## Files to touch next
-Freeze first — start from `Configs/ModLogs/MapEventNullFix20260712.log` (AVE + freeze stacks) via
-`bannerlord-crash-diagnose`. No source file is queued for edit; do not open one until the diagnosis names it.
+**Nothing is queued for edit — and that is deliberate.** The next input is EVIDENCE (Mark's dump), not code.
+If Mark authorizes code, do **fix-plan step 1 ONLY**: a watchdog + minidump-on-AVE in
+`~/AI/projects/MapEventNullFix/MapEventNullFix/Patches/MissionTickGuardPatch.cs` (+ a new Watchdog class) — it is
+the automated form of the manual dump and advances the diagnosis whichever hypothesis wins. Steps 2–6 (ACC's
+`agent.Key` validation, the `CustomBattleAgentLogic` null-guard prefix, the leak clear) wait for the dump.
+Re-verify the game is closed at build time — and use the BROAD process match, never `grep Bannerlord.exe`.
+
+**Do NOT re-run `bannerlord-crash-diagnose` on this freeze.** Its script targets a campaign-map GauntletUI
+BrushWidget crash (rgl logs, Silk.NET, BrushWidget suspects) and points at a stale OneDrive launcher path — the
+wrong evidence surface entirely. The purpose-built script for this freeze is saved at
+`.claude/projects/-home-w1r3d-AI-projects-ProperShieldWalls/62fb5037-*/workflows/scripts/psw-freeze-diagnose-2026-07-12-*.js`.
+
+<!-- session-state-sync: last written by session 62fb5037 at 2026-07-13 08:02:31 -0300 -->

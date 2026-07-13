@@ -353,3 +353,113 @@ would give exactly a native null-deref at a fixed offset plus NREs on half-dead 
   have silently destroyed the oscillation fix *and the ten local commits before it* and shipped stock behaviour in
   a DLL that still builds. Local fixes now live in `scripts/local-fixes.patch`; normalize re-applies it and ABORTS
   without it.
+
+---
+
+## 2026-07-13 — the freeze is diagnosed; my own lead hypothesis was the first thing to die
+
+No PSW code touched (still `9fae4a1`). Read-only forensics: a **21-agent Fable workflow** (collect → 4 lenses →
+adversarial refuters → synthesis), launched at Mark's request. Full report:
+`~/AI/projects/MapEventNullFix/docs/freeze-2026-07-12-diagnosis.md`. Confidence **Medium** — the mechanism class is
+proven, the exact park site is not.
+
+### The guard is NOT the freeze — and this is why adversarial review earns its keep
+Both the prior handoff and I opened on "MissionTickGuard suppressed an NRE and let the engine tick corrupt state ⇒
+the guard converts a crash into a hang." Three refuters killed it on one fact: there is **exactly ONE** MissionTickGuard
+NRE suppression in the whole **157,656-line** day log (23:27:48.039, 3 ms before silence). A suppression spin — or a
+logging-cost collapse — produces **spam, not silence**. The lens I was most confident in was the only one that died.
+
+### What it actually is: the non-faulting flavor of a native bug we can already see
+The main thread stops inside native `Mission.Tick`. Same freed-object walk that throws the AVEs: **unmapped** memory ⇒
+it faults, and the guard recovers it (7/7 that day). **Mapped garbage** ⇒ the same walk silently loops — no exception,
+so nothing logs and the process just sits there. That is precisely the observed log.
+
+Corrections to the record the workflow forced:
+- **SEVEN AVEs, not six**, across **four launches** — plus four more on **07-08**. The walker is **at least 4 days
+  old**, not new.
+- **One AVE fired in the FIRST battle of a fresh launch.** That single fact **kills the "stale agents surviving
+  teardown" requirement** the prior session's unified theory rested on.
+- **Three bugs, not one.** The native walker; ACC's unvalidated killmove affector meeting vanilla
+  `CustomBattleAgentLogic.OnAgentHit`'s three unguarded dereferences; and the leak. **The leak is mechanically
+  INERT** — RBMAI's stale `Agent` keys are never dereferenced (`BattleStatsLogic.cs:96-136` reads only `item.Value`),
+  so it cannot cause either crash. Do not ship a unified "stale-agent" fix expecting it to cure all three.
+
+### Two dead ends, both killed cheaply, both worth not re-walking
+- **GPU/TDR.** Seven `Kernel_141` (display-driver hang) WER folders sit on the box dated 07-12 — a very strong-looking
+  lead given the RX 9070 XT's documented D3D11 fragility. Dead: the Windows **System event log has ZERO TDR events in
+  two days**, and no app-error entry at 23:27. Their identical directory mtime is a **WER queue flush, not the event
+  time**. Generalises: a WER folder's mtime is not when the fault happened — ask the event log.
+- **"Just turn MissionTickGuard off and get a real crash."** Superficially the obvious experiment; it is a bad one.
+  The freeze is non-faulting, so there is **no exception to convert into a crash** — guard-off would leave the freeze
+  equally silent while turning the frequent, *currently recoverable* AVEs into session-ending CTDs. Costs Mark battles,
+  buys nothing.
+
+### The next input is EVIDENCE, not code — and it is free
+**DUMP-BEFORE-KILL.** At the next freeze: note per-core CPU in Task Manager, then right-click
+`Bannerlord.BLSE.Standalone.exe` → **Create dump file**, *then* kill. One dump discriminates every surviving
+hypothesis at once (pinned core + native stack near `Mission.Tick` = the spin; ~0% CPU + wait/barrier frames = a
+job-join deadlock; a managed stack in another mod = the diagnosis is wrong). Freezes happen during normal play, so
+this costs zero extra runs. A 6-step fix plan exists and **none of it is authorized**; only step 1 (watchdog +
+minidump-on-AVE) is no-downside, and even that is downstream of the dump.
+
+### An inherited premise that is NOT verified — flagged, not fixed
+The "12 of 13 NRE hits at 13:56–13:58 predate the fork ⇒ the ORIGINAL ACC did it too" claim is the **sole basis for
+exonerating our ACC fork**, and I fed it into every agent prompt as established fact. Its **source is unlocated**:
+this day-log holds exactly ONE suppression, so those 13 hits are not in it. The exoneration may well be right — but
+it is currently **inherited, not verified**. **Relocate those hits before touching ACC code.** (A false lead recorded
+to prevent a wrong rollback has quietly become an unchecked premise protecting the same mod. Both directions cost.)
+
+### Tooling note
+`bannerlord-crash-diagnose` was **not** used, despite the handoff naming it. Its script targets a campaign-map
+GauntletUI **BrushWidget** crash — rgl logs, Silk.NET, brush suspects, and a stale OneDrive launcher path. Wrong
+evidence surface; it would have sent Fable at the wrong files. A purpose-built script was written instead and is
+saved under this session's `workflows/scripts/`. The skill is worth re-pointing at a *generic* evidence surface
+before it is trusted again by name.
+
+---
+
+## 2026-07-13 (later) — the wiki had nothing, and the fix we "already shipped" has never once fired
+
+Mark's question — *"we've had these freezes many times, nothing in the wiki on how we fixed it?"* — was the most
+valuable thing in the session. The wiki genuinely had **nothing**: `map-event-null-fix.md`'s only "AVE" matches
+are the letters inside "Save". All the prior art was trapped in `MapEventNullFix/docs/crash-diagnosis-reference.md`
+(compiled 2026-05-24) and the CHANGELOG, so every session re-derived it from raw logs. **The doc-to-wiki lift never
+happened. That was the real defect.** Now fixed: new wiki page **`bannerlord-stale-agent-crashes`** (linked from
+`index` + `crash-debugging`, logged in `log.md`).
+
+### The answer to "how did we fix it" is: we didn't
+- The **adaptive dt cap** the May doc recommended WAS built — `MaxDtHighLoad = 0.020f` — but is gated behind
+  `HighLoadAgentThreshold = 800`. **Every observed AVE fires at 406–780 entities. Under the gate. The mitigation
+  for this exact crash family has never once engaged**, and dt sat pinned at the weaker 0.050 (clamps in the
+  thousands). The freeze itself: `entities~780`, twenty short.
+- **`MiniDumpWriteDump` (§5 of the reference) was never built** — the complete P/Invoke code had been sitting in
+  the doc unused since May. The VEH *was* built, which is the only reason we have a fault address at all.
+- **v3.11.16** already shipped a fix for the *same mechanism* (`ArtemCore.DropOffWeapon` stale-agent, BUTR EPJS9N:
+  managed `Agent` non-null, native entity destroyed). A shield for one call site, not a cure.
+
+### Built and shipped: MapEventNullFix v3.11.22 (`2869d65`, pushed, deployed, sha-verified)
+- **`CrashDumper`** — minidump on native AVE, taken **from the VEH, not the managed Finalizer**: by the time a
+  Finalizer runs the CLR has unwound the native frames, so a dump taken there has no stack for the fault. Runs on a
+  dedicated thread (DbgHelp isn't thread-safe) while the faulting thread blocks (`EXCEPTION_POINTERS` lives on its
+  stack). Capped 3/session.
+- **`TickWatchdog`** — the freeze catcher, because **the freeze never throws**: no VEH, no finalizer, no WER report.
+  A background thread watches a heartbeat from **both** tick prefixes (the siege-deploy path calls `Mission.OnTick`
+  directly and never runs `Mission.Tick`) and dumps the process while it is still stuck. Never touches a TaleWorlds
+  object — only a timestamp the main thread wrote. **Re-arms**, so a pause logs *"ticking RESUMED — that stall was
+  NOT a freeze"* instead of silently eating the dump budget.
+- **A bug caught mid-write, worth keeping:** `GetCurrentThreadId()` inside the dump writer returns the **dumper**
+  thread's id, not the faulting one — it would have named the wrong thread as the crash site and made every AVE
+  dump useless. Capture it on the faulting thread.
+
+### The process mistake, and the fix
+I launched the workflow **without reading the reference doc myself** — I passed it to *one sub-agent* and thought
+that covered it. It doesn't: a sub-agent returns a narrow answer to the question you asked, but the doc's value is
+in the questions it makes you ask when **designing** the lenses. Blind to it, the design missed both findings above,
+and burned 1.65M tokens re-deriving recorded history. Now a rule in global `CLAUDE.md`. The actual trap is also
+fixed: `bannerlord-crash-diagnose` had a **stale OneDrive launcher path** (a stale path yields an empty mod list,
+and an empty list reads as *"no mod is implicated"*) and its scope is now honestly labelled campaign-map/UI-only.
+
+### Next: Mark fights back-to-back battles
+**Verify the arm lines in the ModLog before reading anything into the result** — the instrument is `RequireRestart`
+and has never run in the field. `EnableMemoryTracker` left OFF on purpose: the census wants exactly this run, but
+its forced per-mission GC adds a timing variable to an intermittent freeze repro. The freeze outranks the leak.
