@@ -699,3 +699,55 @@ New wiki page **`bannerlord-memory-leak-census`** (linked from `index`, logged i
 two metric traps, what the census is, the ~15 recurring roots, the arithmetic that refuted the Formation suspect,
 the static-event suspect, and the standing rule *don't ship a leak fix before the census names the root*. It was
 only ever recorded in PSW's notes — the wrong home for a Bannerlord-wide finding.
+
+---
+
+## 2026-07-13 (night) — the census named one root, refuted three more of my own, and Mark called the method
+
+No PSW code touched (still `9fae4a1`). Work is `MapEventNullFix` v3.11.24 → v3.11.26.
+
+### The finding of the session is Mark's, not mine: we were chasing our tail — in METHOD
+*"Many battles and no answer. See if there is a better way — maybe a debugger."* He was right. Six sessions of
+hand-built in-process probes were extracting **one bit per battle he fought**. A heap profiler hands over the
+entire object graph — every object, its retained size, and the reference chain keeping it alive — in **one
+snapshot, zero code, zero battles**. I should have reached for one three runs earlier. **PerfView** (Microsoft,
+free, portable, no installer) and **VMMap** (Sysinternals) are now downloaded, CLI-tested from WSL, and live in
+`C:\Users\w1r3d\Tools\`. `BannerlordAIDebugger` was checked and is the **wrong tool** — it is a crash-telemetry
+gateway, blind to the heap.
+
+### What the probes DID settle before being retired
+- **A whole dead `Mission` is retained every battle** — `MISSION-RETENTION` climbs 1,2,3 across three launches
+  (`WeakReference` + forced 2-pass collect). And **`Retained` tracks that count 1:1 ⇒ each husk is ~26 MB**, which
+  IS the managed leak. `FreeResources()` nulls `_allAgents`, but `MissionBehaviors` is **never cleared** — that is
+  where the weight lives.
+- **NAMED: `TacticalPosition`, a registration bug in the engine's own ledger.** Every `DotNetObject` strong-registers
+  itself in static `DotnetObjectReferences` with `ReferenceCount = 0`, and is removed **only** inside
+  `DecreaseReferenceCount` when a decrement reaches 0. The refcount split is the proof: **`rc=0` grows 864 → 1182
+  while `rc>0` stays frozen at 44.** Nothing increments them ⇒ no decrement ever fires ⇒ **they can never be
+  removed.** Monotonic (+420, +534, +318). Its managed bytes are trivial; whether it drags native scene data with
+  it is **UNVERIFIED**.
+
+### Four suspects died — every one to an instrument, never to an argument
+The order-UI handler (`mission=null` — vanilla nulls `MissionBehavior.Mission` at teardown, so it pins an *empty
+husk*), FormationFilter's OoB VMs (same nulled field), `InputKeyItemVM` (2 strings and a `TextObject`), and
+**`DotnetObjectReferences` itself** — the direct membership test I built to check my own lead hypothesis came back
+*"the stranded Mission is NOT in it"*. **Building the membership test instead of asserting the mechanism is the
+only reason none of those shipped as "the fix".** The order-handler unsubscribe was a one-line, genuine, *tempting*
+vanilla bug that would have recovered kilobytes while we declared victory.
+
+### And I made the same mistake I kept warning about — on the native side
+I asserted, twice, and wrote into the handoff: *"native `Private` grows +150–200 MB/battle, ~6–10× the managed —
+we are chasing the tip of the iceberg."* **Refuted by the next run:** `Private` went `7306.4 → 7616.2 → 7563.3` —
+up, then **down**. It is noisy; two runs happened to rise and I read a leak into them. **A plausible mechanism plus
+two rising samples is not a leak.** Corrected in `SESSION-STATE.md` rather than left to be inherited as fact — a
+correction that lives only in chat is a mistake laundered into a durable one.
+
+### Doc bug found live
+The game process is **`Bannerlord.BLSE.LauncherEx.exe`** (verified: PID 9604, window title *Mount and Blade II
+Bannerlord - Singleplayer*). Multiple docs — including the manual-dump instructions for the freeze — name
+`Bannerlord.BLSE.Standalone.exe`, **which does not exist on this box**. Match the family, never one exe name.
+
+### Next
+**One profiler run.** Main menu → vmmap baseline → 3 back-to-back battles → back to main menu → **leave the game
+RUNNING** (it was closed last time, and the snapshot was lost) → `PerfView HeapSnapshot` + vmmap #2. That answers
+"what roots the dead Mission" outright, and prices the native side honestly for the first time.
