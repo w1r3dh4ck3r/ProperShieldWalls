@@ -62,22 +62,31 @@ Task Manager → right-click `Bannerlord.BLSE.Standalone.exe` → *Create dump f
 construction. `TickWatchdog` survives as a log-only stall detector that tells Mark to do exactly that. Also get
 per-core CPU: a pinned core says spin, ~0% says deadlock. Analyse in WinDbg (`~*k`, `!clrstack` under SOS).
 
-## Next Step — DEPLOYED; the only thing left is Mark's in-game validation
-**Both free-cam gates are LIVE** (`ArtemsCinematicCombatFork@5f28961`, deployed 2026-07-13 13:47, live DLL
-sha-verified + decompiled: `get_IsMine` ×3 present in the deployed binary, not just the build).
+## Next Step — READ THE CENSUS RESULTS from the run Mark is fighting right now
+**Mark is mid-run as of 2026-07-13 15:04**, fighting back-to-back battles with the upgraded census armed.
 
-**What Mark validates:** enter RTS Camera free-cam, let an enemy attack his (AI-driven) character.
-1. A killmove must **NOT** snap the camera into the animation.
-2. A masterstrike must **NOT** drop the battle to 0.2× speed.
-Both must still work normally when he is fighting in first/third person — that's the other half of the test, and
-a pass on (1)+(2) with a regression there is still a fail.
+**When he returns — read `Configs/ModLogs/MapEventNullFix20260713.log` (or 0714), newest `SESSION START`:**
+```bash
+grep -n "subscriber:"    <log>   # <<< THE ANSWER: names the object each leaking static event is pinning
+grep -n "STATIC-CENSUS"  <log>
+grep -n "MEMORY(retained)" <log> # after-teardown lines only; expect ~+17-21MB/battle again
+```
+`grep subscriber:` is the whole point of the run. If a `Target` type is **mission-scoped** (a MissionView /
+MissionBehavior / mission-owned input component), **that is the leak** — it pins the whole dead Mission.
+If every Target is `static …` or a long-lived singleton, the events are exonerated and the root is elsewhere
+(then: `NOTHING GREW` guidance in the census's own output, or a heap dump with `!gcroot`).
 
-Build output is `bin/Release/**net472**/`, not `bin/Release/`. Deploy target is
-`Modules/ArtemsCinematicCombatFork/bin/Win64_Shipping_Client/`.
+**Then turn `EnableMemoryTracker` back OFF.** Its forced per-mission GC is not free.
 
-**Still untouched, deliberately:** lock-on (`EnableLockOn`, sites ~449/~8403/~8414) still gates on
-`== Agent.Main`. Not reported as a problem and not obviously wrong — leave it unless Mark sees aim-assist
-weirdness in free-cam. The killmove/masterstrike **animations** are also untouched by design.
+### ACC free-cam fix — camera VALIDATED IN-GAME; slow-mo NOT separately confirmed
+Mark, 2026-07-13: **"the fix to the killmoves worked"** — the camera no longer snaps into a killmove on his
+AI-driven character. **He reported the camera only.** The slow-motion gate is deployed and IL-verified but
+**he has not confirmed a masterstrike in free-cam without the 0.2× drop.** Do NOT record it as validated.
+Ask him next session. (`ArtemsCinematicCombatFork@5f28961`, live DLL sha-verified, `get_IsMine` ×3.)
+
+**Still untouched, deliberately:** lock-on (`EnableLockOn`, ~449/~8403/~8414) still gates on `== Agent.Main`.
+Not reported as a problem — leave it unless Mark sees aim-assist weirdness in free-cam. The killmove/masterstrike
+**animations** are untouched by design.
 
 ### THE CENSUS RAN (2026-07-13 14:18 launch) — leak replicated a 3rd time, narrowed to ~15 roots, root NOT yet named
 **Leak REPLICATED, third independent session.** `MEMORY(retained)` at `after-teardown` (forced collect, `agents=0`):
@@ -251,4 +260,4 @@ BrushWidget crash (rgl logs, Silk.NET, BrushWidget suspects) and points at a sta
 wrong evidence surface entirely. The purpose-built script for this freeze is saved at
 `.claude/projects/-home-w1r3d-AI-projects-ProperShieldWalls/62fb5037-*/workflows/scripts/psw-freeze-diagnose-2026-07-12-*.js`.
 
-<!-- session-state-sync: last written by session 9038547f at 2026-07-13 13:56:02 -0300 -->
+<!-- session-state-sync: last written by session 9038547f at 2026-07-13 15:01:29 -0300 -->

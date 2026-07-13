@@ -679,3 +679,23 @@ Next back-to-back run turns `+13 anonymous subscribers` into a mod name and a cl
 ### Separate real bug, logged NOT fixed
 `HarmonySharedState.originals` grows **+230/battle** ⇒ **something re-patches Harmony every mission.** Small bytes,
 so it is not the leak — but it is a genuine bug and it should not get conflated with one.
+
+### In-game result + what is NOT yet validated (do not launder this)
+Mark, live: **"the fix to the killmoves worked"** — the ACC camera no longer snaps into a killmove on his
+AI-driven character in RTS free-cam. **Camera half: VALIDATED.**
+**The slow-motion half is NOT separately confirmed.** He reported the camera only; a masterstrike in free-cam
+without the 0.2× drop has not been observed. It is deployed and IL-verified, nothing more. **Ask him.**
+
+### Doc rot found by the wrap-up sweep — the wiki was RIGHT and the project doc was WRONG for three days
+`bannerlord-modding-overview.md` corrected the ILSpy path on **2026-07-10**. `ProperShieldWalls/CLAUDE.md` still
+carried the dead `/mnt/c/Users/Mark Lewis/.dotnet/tools/ilspycmd.exe` — and **the project-local doc is the one you
+read first**, so the stale layer won and silently no-op'd two decompile attempts today. Worse,
+`wiki/build-system.md` was still handing out a *runnable command* using it. Three other pages said "that path does
+not exist" without saying where the real one **is** — a negative result that doesn't hand you the positive still
+costs the next reader a hunt. All fixed; all now name `~/.dotnet/tools/ilspycmd`.
+
+### Durable knowledge lifted OUT of this journal
+New wiki page **`bannerlord-memory-leak-census`** (linked from `index`, logged in `log.md`) now owns the leak: the
+two metric traps, what the census is, the ~15 recurring roots, the arithmetic that refuted the Formation suspect,
+the static-event suspect, and the standing rule *don't ship a leak fix before the census names the root*. It was
+only ever recorded in PSW's notes — the wrong home for a Bannerlord-wide finding.
