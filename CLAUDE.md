@@ -19,7 +19,9 @@ Key deliverables in `docs/`:
 
 - Game: `D:\SteamLibrary\steamapps\common\Mount & Blade II Bannerlord\`
 - Modules: `D:\...\Modules\ProperShieldWalls\`
-- ILSpy CLI: `/mnt/c/Users/Mark Lewis/.dotnet/tools/ilspycmd.exe`
+- ILSpy CLI: `~/.dotnet/tools/ilspycmd` (the **Linux** dotnet tool, no `.exe`). The Windows user is
+  `w1r3d`, not `Mark Lewis` — a `/mnt/c/Users/Mark Lewis/...` path does not exist on this box.
+  `ilspycmd <dll> -o <dir>` writes ONE `<Assembly>.decompiled.cs`, not a project tree.
 
 ## AI Instructions
 

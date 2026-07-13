@@ -5,24 +5,50 @@
 touched for three sessions. The live work is in sibling repos. **The 2026-07-12 hard freeze is now DIAGNOSED
 (2026-07-13) and waiting on ONE free piece of evidence from Mark — a process dump at the next freeze.**
 
-## Last Action — I SHIPPED A REGRESSION AND THEN FIXED IT. Read this before anything else.
-**v3.11.22's `CrashDumper` HUNG THE GAME.** It made things strictly worse: it turned a *recovered* native AVE into
-a hard freeze. Mark hit it on the first try, twice, on a Custom Battle loading screen (2026-07-13 ~08:46 / 08:48).
+## Last Action (2026-07-13, latest) — ACC free-cam camera hijack FIXED; a naive gate would have been worse
+Verified both halves of a fix that had been running on inherited guesswork. **RTS Camera really does set
+`Mission.MainAgent.Controller = AgentControllerType.AI`** in free-cam (`Utility.AIControlMainAgent()`) and never
+nulls `Agent.Main` — so ACC's `== Agent.Main` cinematic paths kept firing while the AI drove the body. The gate is
+vanilla's own **`Agent.IsMine`** (`=> Controller == AgentControllerType.Player`). **`Mission.MainAgentController`
+does NOT exist** — a subagent proposed it; it would not have compiled.
 
-**Mechanism:** `MiniDumpWriteDump` was called with `hProcess = GetCurrentProcess()` — a **self-dump**. It suspends
-every thread but the dumper's. The faulting thread is one of them, parked in `RequestDumpFromVeh` on
-`_dumpComplete.WaitOne(30000)` — so it is suspended *while waiting* and can never reach its own timeout. The dump
-never returns; the process sits frozen holding a 0-byte `.dmp`. (Hard deadlock vs. pathological slowness is NOT
-established and does not matter — same fix.) Evidence: two 0-byte `menf_ave_*.dmp`; **zero** `CrashDumper:` lines
-(so `WriteDump` reached neither its WROTE nor its FAILED branch); log's last line = the same second as the dump.
+**The finding: "just early-return" would have been strictly WORSE than the bug.**
+`MissionGauntletCinematicCombatView` is *not* camera-only — `HandleLookingAtOnTick` **hides every agent within 3 m
+of the shot** (`SetVisible(false)`). A bare `return` would strand the camera **and leave those agents permanently
+invisible** if free-cam were entered mid-killmove. The gate therefore **RELEASES** (restore hidden agents + tear the
+camera down, mirroring each view's own idiom) before returning. Same family as the CrashDumper lesson: an
+intervention that leaves the subject half-configured is worse than no intervention. "It's a MissionView, so it's
+just camera" was **inference, not reading** — the advisor caught it.
 
-**Fixed + deployed: v3.11.23 (`7ea2291`, live DLL sha `d2769573`, clean).** `EnableCrashDumps` now defaults
-**false**. The live MCM JSON (mtime 07-12 23:31) contains **neither** key, so the code default governs — verified.
-**A minidump can only be taken safely from ANOTHER process. Do not set `EnableCrashDumps = true`.** Automating it
-properly needs an out-of-process helper (spawn an exe with the game PID, `ClientPointers = 1`) — NOT built, NOT
-authorized. Offer it to Mark; don't build it unasked.
+Two camera-movers only (both via `MissionScreen.CustomCamera`): `MissionGauntletCinematicCombatView` and
+`...ViewMercy`. No third site. Killmove animation, lock-on and slow-motion untouched by design.
 
-**CONFIRMED FIXED IN-GAME (2026-07-13):** Mark relaunched, battles load, he ran test battles. Committed + pushed.
+## Prior action — v3.11.23 VALIDATED over 3 back-to-back battles, and the dt-cap fix is now REFUTED
+**Run read 2026-07-13 09:33** (`MapEventNullFix20260713.log`, session `09:06:08`, v3.11.23). Three battles
+back-to-back — `09:08:56 → 09:21:13 → 09:26:20 → 09:32:53` (~24 min of mission time), one of them a **1000-agent**
+fight. **No freeze. No hang.** `TickWatchdog` was **armed** (`dumps=OFF`, log-only) and **never fired**, so no tick
+stall >30 s occurred — positive evidence, not just absence. **Two AVEs, both suppressed and recovered** (`resuming
+after AVE #1 (skipped 15 ticks)` ×2). The v3.11.22 CrashDumper regression is **fully closed**; do not reopen it.
+
+### THE FINDING: the high-load dt cap ENGAGED for the first time — and the AVE fired anyway
+Prior runs all sat at 406–780 agents, **under** the `HighLoadAgentThreshold = 800` gate, so `MaxDtHighLoad = 0.020f`
+had never once engaged. Mark's 1000-agent battle finally crossed it: **775 clamp lines at 0.020**, agents up to 1000.
+Then **AVE #1 fired at `entities~809, dt=0.0200`** — i.e. **with the mitigation in force**.
+
+That `dt` is the **post-clamp** value. `MissionTickGuardPatch.Prefix` takes `ref float dt` and writes
+`dt = activeCap` (`:320`); the Finalizer prints that same argument (`:364`). **So native `Mission.Tick` was handed a
+0.0200 step and faulted regardless** — the cap did its job and the crash did not care.
+
+**Consequence — a queued item is now dead:** *lowering `HighLoadAgentThreshold` below 800 cannot fix this crash
+family.* AVE #1 was already **above** the gate and already receiving the tighter cap. Do not spend a run on it.
+
+**The fault signature never matched the dt theory either.** `FaultVA 0xF8 (READ)` is null-base + field offset —
+the reference doc's own address dictionary (§10) puts `0x00–0xFF` at "**null pointer + small struct offset**",
+whereas §13's formation-overflow-from-dt-spike chain predicts a *use-after-free heap-shaped address*. Two
+independent refutations. §13's root-cause chain is **not supported by the evidence**; treat it as history.
+
+**Strategy therefore moves from PREVENTION to RECOVERY.** The native walker is not patchable from managed code.
+Suppress-and-skip is holding **9/9 lifetime AVEs** (7/7 on 07-12 + 2/2 today) — that *is* the mitigation, and it works.
 
 Three docs were still telling the next session to build the thing that hung the game — **all three now corrected**:
 `docs/crash-diagnosis-reference.md` §5 (the RULE-ZERO prior-art doc — it carried the exact self-dump P/Invoke
@@ -36,22 +62,33 @@ Task Manager → right-click `Bannerlord.BLSE.Standalone.exe` → *Create dump f
 construction. `TickWatchdog` survives as a log-only stall detector that tells Mark to do exactly that. Also get
 per-core CPU: a pinned core says spin, ~0% says deadlock. Analyse in WinDbg (`~*k`, `!clrstack` under SOS).
 
-## Next Step — two items, neither started
-1. **The 07-12 freeze is STILL the open question.** Nothing about it was solved this session; we only stopped
-   *causing a second one*. The missing evidence is unchanged: **a manual process dump at the next freeze.** If Mark
-   reports one, get the dump + per-core CPU before he kills it.
-2. **NEW deferred bug — ACC cinematic camera hijacks the RTS view** (Mark, 2026-07-13). Commanding from RTS Camera's
-   bird's-eye view, a matched-combat killmove fires on his character and the camera snaps into the animation and
-   back out. **Cause:** ACC gates its *player* paths on `Agent.Main`, and `Agent.Main` still points at his character
-   in free-cam — RTS Camera reassigns *control*, not identity. **Fix the CAMERA, not the animation** (killmove still
-   plays, no combat change): gate on `Agent.Controller` (`get_Controller` verified present in
-   `TaleWorlds.MountAndBlade.dll`). **Verify FIRST that RTS Camera actually sets `Controller` to AI — the whole fix
-   rests on it.** Call sites, the MCM "Cinematic Camera" setting, and caveats: wiki `artemscinematiccombat-fork`.
+## Next Step — ONE action, and it is a DEPLOY that is already built
+**The ACC camera fix is DONE, committed (`ArtemsCinematicCombatFork@81da4f0`), built and IL-verified — but NOT
+DEPLOYED, because the game was running.** This is the whole next step:
+
+```bash
+# 1. confirm closed (BROAD match — never grep "Bannerlord.exe")
+/mnt/c/Windows/System32/tasklist.exe | grep -iE "bannerlord|taleworlds" || echo CLOSED
+# 2. deploy
+cp ~/AI/projects/ArtemsCinematicCombatFork/bin/Release/net472/ArtemsCinematicCombatFork.dll \
+   "/mnt/d/SteamLibrary/steamapps/common/Mount & Blade II Bannerlord/Modules/ArtemsCinematicCombatFork/bin/Win64_Shipping_Client/"
+# 3. Mark validates: enter RTS free-cam, let a killmove hit his character -> camera must NOT snap.
+```
+Note the build output is `bin/Release/**net472**/`, not `bin/Release/`.
+
+**Still open, deliberately NOT done (Mark's call):** `masterStrikeSlowmotion` has **no `Agent.Main` gate at all**
+(`SlowMotion()`/`RemoveSlowMotion()`, ~825/835), so a killmove on his AI-driven body still dilates time for the
+whole battle even with the camera fixed. One-line add if he wants it. Lock-on (`EnableLockOn`) likewise untouched.
+
+**The 07-12 freeze remains the other open question** — it did NOT recur across 3 back-to-back battles, so it is
+**intermittent, not load-gated**, and there is still **no dump**. Ask is unchanged and free: at the next freeze,
+per-core CPU (pinned core = spin, ~0% = deadlock), then Task Manager → right-click
+`Bannerlord.BLSE.Standalone.exe` → *Create dump file*, **THEN** kill. `TickWatchdog` prints a banner saying so.
 
 ## Files to touch next
-Only if item 2 is authorized: `~/AI/projects/ArtemsCinematicCombatFork/scripts/perf-fixes.patch` (**NOT** `src/` —
-`src/ArtemsCinematicCombat.cs` is GENERATED and a `normalize.sh` run destroys direct edits; the patch is the only
-durable place). Read the fork's wiki page before touching either.
+Nothing queued for EDIT — the next action is a deploy + Mark's in-game validation. If the fix needs iterating,
+edit `~/AI/projects/ArtemsCinematicCombatFork/scripts/perf-fixes.patch` (**NOT** `src/` — it is GENERATED;
+`normalize.sh` destroys direct edits), then re-run `./scripts/normalize.sh` && build.
 
 **Full report: `~/AI/projects/MapEventNullFix/docs/freeze-2026-07-12-diagnosis.md`** (adversarially verified,
 Medium confidence). Fix-plan **steps 2-6 remain UNAUTHORIZED** — three refuters independently killed the claim that
@@ -62,11 +99,15 @@ forced per-mission GC adds a timing variable to an intermittent freeze repro. Th
 on a LATER run, once the freeze is captured.
 
 ### Not yet done (named so it is not silently dropped)
-- **The `HighLoadAgentThreshold = 800` gate** — every observed AVE fires at 406–780 entities, so the anti-crash dt
-  cap (`MaxDtHighLoad = 0.020f`) has **never once engaged**. A one-constant change, deliberately NOT made: if
-  freezes then stop we would not know why, and if they don't we learn nothing. Do it AFTER the dump.
+- **DEAD — do not do it: lowering `HighLoadAgentThreshold` below 800.** The 07-13 run settled it: the cap engaged
+  at 809+ agents and AVE #1 fired anyway on a 0.0200 step. See the finding above. Left named here only because
+  three handoffs queued it; it is now evidence-against, not pending.
 - **The boot marker** in `MapEventNullFix.SubModule` that would close `bl-verify-armed`'s known relaunch hole
   (global `CLAUDE.md` documents it). Still not built.
+- **The static-root census (`EnableMemoryTracker`) still has NOT run** — it is OFF, so 07-13's 3-battle
+  back-to-back run (exactly the shape it needs: baseline at teardown 1, growth from teardown 2 on) produced **no
+  leak data**. It was held back so its forced per-mission GC would not perturb the freeze repro. **The freeze did
+  not recur, so that reason has weakened** — arming it for the next back-to-back run is now the cheapest open win.
 
 ### What the freeze IS
 The main thread stops inside **native `Mission.Tick`** — most plausibly the *non-faulting* flavor of the same
@@ -167,4 +208,4 @@ BrushWidget crash (rgl logs, Silk.NET, BrushWidget suspects) and points at a sta
 wrong evidence surface entirely. The purpose-built script for this freeze is saved at
 `.claude/projects/-home-w1r3d-AI-projects-ProperShieldWalls/62fb5037-*/workflows/scripts/psw-freeze-diagnose-2026-07-12-*.js`.
 
-<!-- session-state-sync: last written by session b72a371c at 2026-07-13 09:00:21 -0300 -->
+<!-- session-state-sync: last written by session 42ad2807 at 2026-07-13 09:41:35 -0300 -->

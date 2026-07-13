@@ -534,3 +534,69 @@ in `TaleWorlds.MountAndBlade.dll`). Full write-up, call sites and caveats: wiki 
 1. Mark is running test battles. If a freeze recurs: **manual dump before killing**, plus per-core CPU (one core
    pinned = spin, ~0% = deadlock). That dump is still the one missing piece of the 07-12 diagnosis.
 2. The ACC/RTS camera bug above.
+
+---
+
+## 2026-07-13 (later still) — the ACC free-cam camera fix, and the gate that would have been worse than the bug
+
+No PSW code touched (still `9fae4a1`). Work is in `ArtemsCinematicCombatFork` (`81da4f0`).
+
+### Both halves of the fix were inherited guesswork. Both now verified.
+The handoff said "gate on `Agent.Controller`" and flagged, correctly, that **nobody had checked RTS Camera actually
+sets it**. It does: `MissionSharedLibrary.Utilities.Utility.AIControlMainAgent()` sets
+`Mission.MainAgent.Controller = AgentControllerType.AI` on free-cam enter, restores `Player` on exit, and **never
+nulls `Agent.Main`** — it reassigns *control*, not *identity*. That is exactly why ACC's `== Agent.Main` branches
+kept firing while the AI drove the body.
+
+Vanilla already ships the predicate: **`Agent.IsMine => Controller == AgentControllerType.Player`**. No helper, no
+enum import. (A subagent confidently proposed `Mission.MainAgentController` — **it does not exist** and would not
+have compiled. Its *line numbers* were all real, though; I spot-checked them before trusting the rest.)
+
+### The real find: the obvious fix — early-return the camera tick — is STRICTLY WORSE than the bug
+`MissionGauntletCinematicCombatView` looked camera-only (it's a `MissionView` whose fields are all cameras), and I
+was one step from blanket-gating its `OnMissionScreenTick`. It is **not** camera-only: `HandleLookingAtOnTick`
+**hides every agent within 3 m of the shot** (`AgentVisuals.SetVisible(false)` → `_hiddenAgents`) so they don't
+block it, and restores them on any non-killmove tick. A bare `return` would, if free-cam were entered
+*mid-killmove*, leave the camera stuck **and up to N agents permanently invisible for the rest of the battle**.
+
+So the gate **releases** rather than declining to run: `RestoreAllHiddenAgents()` + tear the camera down, mirroring
+each view's *own* teardown idiom (the main view's `IL_01b0` is null-guarded; the mercy view's `IL_016d` is not, and
+owns no hidden agents — **do not copy-paste one into the other**).
+
+> **Generalises — same family as the CrashDumper that froze the game:** an intervention that leaves its subject in a
+> half-configured state is worse than no intervention. And *"it's a MissionView, so it's just camera"* was
+> **inference, not reading**. Read what a method does before you decide it's safe to skip.
+
+Only two things move the camera (`MissionScreen.CustomCamera`): the matched-combat view and the mercy view. Grepped
+file-wide; no third site. Killmove animation, lock-on and slow-motion deliberately untouched — the cinematic still
+plays for his troops, he just isn't yanked into it.
+
+### Verified, not assumed
+`normalize.sh` re-ran end-to-end (decompile stock → transforms → patch), both gates present in the regenerated
+`src/`, build clean, and the IL carries **`get_IsMine` ×2** with **0 self-recursive `callvirt`** (hard rule #2).
+The new hunks were given wide context on purpose: at 3 lines both were `{ / return; / }` → `if (Agent.Main != null)`
+— **identical**, so a line shift could have applied the main hunk at the mercy site.
+
+### NOT deployed — the game was running
+`bin/Release/**net472**/ArtemsCinematicCombatFork.dll` (note the `net472`, not `bin/Release/`). Deploy + Mark's
+in-game check (RTS free-cam, take a killmove, camera must not snap) is the next action.
+
+**Left for Mark:** `masterStrikeSlowmotion` has **no `Agent.Main` gate at all** — a killmove on his AI-driven body
+still dilates time for the whole battle even with the camera fixed. One line if he wants it.
+
+### Doc rot fixed
+`ProperShieldWalls/CLAUDE.md` pointed at `/mnt/c/Users/Mark Lewis/.dotnet/tools/ilspycmd.exe`. There is **no
+`Mark Lewis` Windows user** (it's `w1r3d`) and the tool is the **Linux** `~/.dotnet/tools/ilspycmd`. Stale for
+months; it silently no-op'd my first two decompile attempts.
+
+### Two things the gate does NOT strand (checked, so nobody re-opens them)
+- **`CinematicCameraEntityTick` is safe to skip.** It is the one helper in the gated block I hadn't read — same
+  "inference, not reading" trap. Its body (10208–10298) touches no persistent state: its only external effect is
+  `cinematicCamera.SetFrame(...)` at 10271, repositioning the camera-holder entity. Every `CustomCamera` assignment
+  in the file is at 9965/10037/10054/10415/10481/10488 (none in that range) and it never touches `_hiddenAgents`.
+  `ReleaseCamera()` + `RestoreAllHiddenAgents()` already cover everything it could have left behind.
+- **ACC and RTS Camera do not fight over `MissionScreen.CustomCamera`.** In the reported path Mark is *already* in
+  free-cam when the killmove fires, so ACC's camera never engages (`_cinematiccamera == null`) — the gate never
+  calls `ReleaseCamera()` and never nulls `CustomCamera`. ACC simply stays out of RTS's way. The only path that
+  nulls it is the rare enter-free-cam-mid-killmove transition, where handing the camera back to RTS is correct.
+  If a stuck/black view is ever reported **in free-cam specifically**, that transition is the place to look.
