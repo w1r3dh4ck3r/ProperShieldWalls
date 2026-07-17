@@ -4,38 +4,32 @@
 **PSW itself is DONE and MERGED** (`9fae4a1`, master, 38/38 tests). No PSW code touched for seven sessions; this
 repo is now just the handoff home for the wider Bannerlord modlist work.
 
-Two things are deployed and **waiting on Mark's in-game verdict**. Nothing else is queued.
+**Weapon-flapping fix VALIDATED and CLOSED** by Mark (2026-07-17): the flapping stopped. A full stop means the
+flappers were spearmen toggling spear↔sidearm — the only troops `SpearPreferenceFork` touches — so the
+"is there a second cause outside the mod?" discriminator is answered NO. One item remains open (the slow-mo
+question); nothing else is queued.
 
-## Last Action (2026-07-13, night) — the +230/battle Harmony counter got a ROOT and a PARK, in one session
-Identified the `HarmonySharedState.originals` grower the census logged three sessions ago and nobody chased: it is
-**RBMAI, in our own RBMFork**, re-emitting its entire detour set on every mission. Full mechanism + the refuted
-alternatives in the PARKED section below. Then asked Mark the one symptom it predicts (a battle-load stall that
-worsens across a launch) — **he cannot feel it, so it is PARKED, not fixed.** The only code change is a corrected
-comment in `RBMFork/Source/RBMAI/RBMAI/RBMAiPatcher.cs`, which had claimed the per-mission re-patch was "free".
-**Nothing was deployed and no rebuild is needed** — the edit is comment-only.
+## Last Action (2026-07-17) — closed the weapon-flapping item on Mark's in-game verdict
+Mark confirmed the flapping stopped. Since a full stop is exactly what `SpearPreferenceFork` predicts (its Schmitt
+trigger only governs polearm carriers), the "were the flappers spearmen, or is there a second cause?" discriminator
+resolves to NO second cause. Marked `SpearPreferenceFork@10f2e06` VALIDATED/CLOSED in the Deployed section and
+removed it from AWAITING. Doc-only change to this file; no code, no rebuild, no deploy. The only remaining
+in-game question is the slow-mo (dt-clamp) one.
 
-## Deployed 2026-07-13, awaiting Mark's verdict (unchanged this session)
-- **`SpearPreferenceFork@10f2e06`** (branch `feat/holdfire-spear-wield`, sha `48f1d09e…`, deployed + verified).
-  Schmitt trigger on the sidearm decision: the enemy-search radius widens from `MaxDistanceToSwitchToSidearms`
-  (2.0 m) to `+SidearmHysteresisGap` (1.5 m ⇒ 3.5 m exit) once a unit already prefers its sidearm, so staying is
-  easier than entering and boundary noise cannot flip it. Latches the **`num > num2` boolean**, not the distance —
-  the count is a knife-edge too (men die mid-melee). `num2` stays in both comparisons so a **cavalry charge still
-  pulls the unit back onto its spear immediately**. Per-agent state is a `ConditionalWeakTable` (weak keys) — a
-  `Dictionary<Agent,_>` on that game-scoped model would pin `Agent -> Team -> Mission` and leak a Mission a battle.
-  Also wired up `HoldFireHysteresisGap`, a **dead MCM slider** (in the DLL, referenced by no code since `e71e2c6`)
-  → renamed `SidearmHysteresisGap`.
+## Deployed 2026-07-13
+- **`SpearPreferenceFork@10f2e06`** — **VALIDATED IN-GAME 2026-07-17, flapping stopped. CLOSED.** Schmitt trigger
+  on the sidearm decision: the enemy-search radius widens from `MaxDistanceToSwitchToSidearms` (2.0 m) to
+  `+SidearmHysteresisGap` (1.5 m ⇒ 3.5 m exit) once a unit already prefers its sidearm, so staying is easier than
+  entering and boundary noise cannot flip it. Latches the **`num > num2` boolean**, not the distance. Kept only as
+  a record of what shipped; no action.
 - **`MapEventNullFix@ff9e4ee` (v3.11.28)** (deployed + verified). `SpawnedItemEntityFix: Initialize() fired` was
   logging **unconditionally on the battle hot path** — 175,359 of 186,482 lines, **94% of a 28 MB day-log** — and
   `SubModule.Log` also does a `Debug.Print` and a UDP datagram per call. Now gated behind
   `EnableMissionTickDiagnostics`. The `TryRemove` is load-bearing and stays unconditional.
 
 ## ⏳ AWAITING IN-GAME VALIDATION (ask Mark before anything else)
-As of 2026-07-13 21:15 Mark had **not yet played** since the deploy. Both questions below are still open.
-1. **Did the weapon flapping stop?** AND the discriminator that decides whether the fix is COMPLETE (asked twice,
-   never answered): **were the flapping units spearmen toggling spear↔sidearm?** That is *all* SpearPreferenceFork
-   can explain — its block only runs for polearm carriers. **Sword-only troops or archers flapping ⇒ a second
-   cause outside this mod, and this fix covers half the problem.** Do not accept "the flapping is gone" alone.
-2. **Do heavy battles feel like SLOW MOTION?** — see the dt-clamp section below.
+The weapon-flapping question is CLOSED (validated 2026-07-17 — see the Deployed section). One question remains:
+- **Do heavy battles feel like SLOW MOTION?** — see the dt-clamp section below. Still unasked/unanswered.
 
 ## PARKED (2026-07-13) — RBMAI re-emits its ENTIRE detour set every mission. Root NAMED, no symptom, NOT hunted.
 This is the `HarmonySharedState.originals +230/battle` item the census logged and nobody chased. **It is NOT a
@@ -143,4 +137,4 @@ battles and see if the AVEs stop. Costs nothing to set up.
 `MapEventNullFix/MapEventNullFix/Patches/MissionTickGuardPatch.cs`.
 Re-Read any file before editing — compaction wipes the harness's read-state.
 
-<!-- session-state-sync: last written by session c89c2644 at 2026-07-13 21:43:26 -0300 -->
+<!-- session-state-sync: last written by session 19291bfe at 2026-07-17 20:26:54 -0300 -->

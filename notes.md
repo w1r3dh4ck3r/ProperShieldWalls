@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-07-17 — weapon-flapping fix VALIDATED in-game, item CLOSED
+
+No PSW code touched (still `9fae4a1`). Doc-only session.
+
+Mark played and confirmed **the weapon flapping stopped**. That closes `SpearPreferenceFork@10f2e06`, deployed
+2026-07-13 and awaiting his verdict since. The handoff carried a discriminator asked twice and never answered —
+*were the flappers spearmen toggling spear↔sidearm, or could a sword-only/archer second cause be hiding?* A **full**
+stop answers it: `SpearPreferenceFork`'s Schmitt trigger only runs for polearm carriers, so if flapping is entirely
+gone, what was flapping was in-scope and there is no second cause outside the mod. Marked VALIDATED/CLOSED in
+`SESSION-STATE.md` and removed from AWAITING.
+
+**Still open, still gated on Mark, not code:** do heavy (800+ agent) battles feel like slow motion? (the dt-clamp
+question). Everything else remains PARKED with no symptom — do not reopen.
+
+---
+
 
 ## 2026-07-13 (night, 2nd) — VALIDATION: the fixes work. The leak survives. And the bytes were never there.
 
