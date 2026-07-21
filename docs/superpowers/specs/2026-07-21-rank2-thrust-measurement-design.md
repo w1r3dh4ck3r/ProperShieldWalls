@@ -186,16 +186,46 @@ No test can cover the Harmony path or the `Agent` reads; that is what the battle
 
 ## 5. Pre-registered decision rule
 
-Written down **before** the battle so the result cannot be rationalised afterwards. Thresholds are
-explicit percentages of the mission's total `live-arc` rejects, evaluated in this order; the first row
-that matches decides.
+Written down **before** the battle so the result cannot be rationalised afterwards. Evaluated in order;
+the first row that matches decides.
 
-| Observation | Conclusion | Stage 2 becomes |
-|---|---|---|
-| Rank ≥ 1 rejects are **< 5%** of all live-arc rejects | Rear ranks aren't attacking in the first place | Neither fix; the problem is upstream in attack initiation |
-| Rank ≥ 1 **polearm Thrusts** are **≥ 20%** of all live-arc rejects | Blocker 2 is not real | The collision fix alone |
-| Rank ≥ 1 rejects exist (≥ 5%) but **< 20%** carry a weapon of length ≥ 200 | Blocker 2 is real — rear ranks hold short weapons | Wielding fix **first**; collision fix alone would have been wasted |
-| Rank ≥ 1 polearm rejects exist but are **majority Swing**, not Thrust | Rear ranks hold spears and swing them | A usage-direction problem, not a collision one |
+**Each row names its own denominator, and they are not the same.** An early version of this table said
+"percentages of total live-arc rejects" for every row. That was wrong twice over, and both errors would
+have produced a confidently incorrect verdict:
+
+- **Alternative attacks are excluded from the base.** Friendly kicks and shield bashes reach the
+  `live-arc` guard and get tagged with the attacker's *wielded* weapon, so a spear-armed man kicking an
+  ally counted as a "polearm" reject. AIKickNBash is live in this modlist. The base for rows 1 and 2 is
+  therefore **weapon strikes (`alt=0`)**, not all rejects.
+- **Rows 3 and 4 are about composition WITHIN a population, not share of the whole.** "< 20% carry a
+  weapon of length ≥ 200" predicates on the rank ≥ 1 men just named. Measured against all weapon strikes
+  it is degenerate — the reach ≥ 200 count is a subset of rank ≥ 1 by construction, so in the only regime
+  where row 3 is reached it is *mechanically* under 20% **even if every rear-ranker carries a 300 cm
+  pike**. The instrument now prints both denominators on every rank ≥ 1 line; read the right one.
+
+| # | Observation | Denominator | Conclusion | Stage 2 becomes |
+|---|---|---|---|---|
+| 1 | Rank ≥ 1 rejects are **< 5%** | weapon strikes (`alt=0`) | Rear ranks aren't attacking in the first place | Neither fix; the problem is upstream in attack initiation |
+| 2 | Rank ≥ 1 **polearm Thrusts** are **≥ 20%** | weapon strikes (`alt=0`) | Blocker 2 is not real | The collision fix alone |
+| 3 | Rank ≥ 1 rejects exist (≥ 5%) but **< 20%** carry reach ≥ 200 | **of rank ≥ 1** | Blocker 2 is real — rear ranks hold short weapons | Wielding fix **first**; collision fix alone would have been wasted |
+| 4 | Rank ≥ 1 **polearm** rejects are **majority Swing**, not Thrust | **of rank ≥ 1 polearms** | Rear ranks hold spears and swing them | A usage-direction problem, not a collision one |
+
+**Two caveats that cap how far row 2 can be trusted:**
+
+- `rel=front` is a **partial** discriminator, not a facing test — it means same formation, same file, lower
+  rank. A rejection that is not `front` is a sideways clip of a neighbour, which forward transparency
+  would never help. Read the `IN FRONT` line as the population Stage 2 can actually serve; if row 2 fires
+  on a population that is mostly *not* `front`, treat the verdict as provisional.
+- Fight with **Cramped Attack Gating OFF**. That feature rewrites crowded AI horizontal swings to
+  overheads, which perturbs the `dir` distribution and makes the parked "is `AttackUp` the overhead
+  animation" question unanswerable. It does not affect strike *type*, so rows 2 and 4 survive it — but
+  the measurement is cleaner without it, and §5 wants native rear-rank behaviour. The report stamps
+  `cramped=` in its config line, so the state is auditable afterwards.
+
+**A fifth outcome, pre-registered so it cannot be argued about later:** if the `detached` bucket
+dominates, **no row is computable** — rank is meaningless for unpositioned men. That is *inconclusive*,
+and the next step is to re-measure in a held formation (Shield Wall or Line, not a charge), not to read
+the remaining rows.
 
 If none of these rows matches cleanly, the result is **inconclusive** and the correct action is to report
 that plainly and re-measure — not to pick the nearest row.
@@ -220,6 +250,10 @@ must end cleanly.
 3. Fight one battle with a spear-heavy formation, in a packed order (Shield Wall or Line), and let it end
    normally rather than quitting out.
 4. Read `Documents/Mount and Blade II Bannerlord/PSW_diag.log`, `==== mission report ====` block.
+   The `live-arc` section prints the §5 answers directly — read those lines, do not hand-aggregate the
+   raw census keys below them. **Check the cross-check line first:** the census total must equal the
+   `rejected live-arc xN` count in the same report. It is coupled by construction, so `MATCH` proves the
+   wiring, not the sampling — but a `MISMATCH` means samples were dropped and the numbers are void.
 5. Turn Diagnostic Logging back **off**. Leaving it on is itself a cost — see the 28 MB day-log incident.
 
 **Do not send Mark to fight until the instrument is verified armed.** The report block must be present in
@@ -242,7 +276,7 @@ which is one of the decision-rule outcomes. That ambiguity would waste the battl
 | Risk | Mitigation |
 |---|---|
 | Editing a `[MBCallback]` patch that currently works | Edit is one call inside the existing `try/catch`; no control-flow or return-value change |
-| Per-collision cost | Path is already filtered to friendly collisions (~1071/mission); reads are managed field accesses |
+| Per-collision cost | Path is already filtered to friendly collisions. Observed volume across the 2026-07-12 logs is **203–9,987 per mission** (300v300 perf-gate mission: 8,131) — the "~1071" figure quoted earlier was the smallest run, not typical. Reads are a handful of **native interop** calls (`GetFormationFileAndRankInfo`, `WieldedWeapon`), not managed field accesses; still single-digit ms across a whole battle |
 | Census dictionary growth | All five fields bucketed; bounded to a few dozen keys |
 | Log left on after the test | Explicit teardown step, called out in the procedure |
 | Instrument silently not armed | Verify the report block appears before the real battle (§6) |
