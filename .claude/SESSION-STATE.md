@@ -1,26 +1,37 @@
 # Session State — ProperShieldWalls
 
-## Current Task — SPRINT 3: rank-2 thrust census (Stage 1 MEASUREMENT), branch `feat/rank2-thrust-census`
-PSW code is live again after seven idle sessions. Mark's goal: **rear-rank spearmen should thrust over their
-allies' heads into the enemy front rank.** Stage 1 changes NO gameplay — it only records who the existing
-`live-arc` guard turns away (rank / weapon class / reach / strike type / attack direction), so Stage 2 is
-designed on data instead of a guess.
+## Current Task — SPRINT 3 COMPLETE. Stage 1 ANSWERED and MERGED to master. Nothing pending here.
+Mark's goal: **rear-rank spearmen should thrust over their allies' heads into the enemy front rank.**
+Stage 1 was measurement-only (zero gameplay change) and it is DONE: built, deployed, measured over two
+battles, decision rule applied, merged (`master@37c30a4`, 95 tests, deployed + chain-verified).
 
-Spec: `docs/superpowers/specs/2026-07-21-rank2-thrust-measurement-design.md`
+**THE ANSWER — do not re-measure, do not re-derive:** decision-rule **row 3 fired. Blocker 2 is REAL.**
+Rear ranks are NOT idle (80.6% of weapon strikes come from rank>=1) but wield a polearm in only **3.2%**
+of them and **88.2% of their strikes are Swings**. They attack constantly holding **swords**.
+**=> Stage 2 is the WIELDING fix FIRST.** The collision fix alone would have been wasted.
+
+**Second measured finding — formation is the deciding variable.** The "man directly in front blocks the
+thrust" case is **3.2% in a loose Line (spacing=2) but 29.6% in a packed ShieldWall (spacing=0)**, read
+against rank>=1 polearm thrusts. So the Stage 2 premise IS sound in packed order — worth doing, after wielding.
+
+Spec (carries both correction boxes): `docs/superpowers/specs/2026-07-21-rank2-thrust-measurement-design.md`
 Plan: `docs/superpowers/plans/2026-07-21-rank2-thrust-measurement.md`
-Ledger: `.superpowers/sdd/progress.md` (Sprint 3 section) — **read this before re-dispatching anything.**
+Ledger: `.superpowers/sdd/progress.md` (Sprint 3). Numbers + reasoning: `notes.md` 2026-07-21 pt1 + pt2.
 
-**Two blockers, not one** (this is the thing not to re-derive): (1) the ally's capsule eats the thrust —
-defeated by `MeleeCollisionReaction.ContinueChecking`, which this mod already uses for wind-up and
-deliberately declines for a live arc (`WindupTransparencyPatch.cs`, the `live-arc` guard); (2) rear ranks may
-not be wielding polearms at all (Mark's own 2026-07-10 note). **If (2) is real, fixing (1) alone buys nothing.**
-Stage 1 exists to tell them apart.
+## Last Action (2026-07-21) — merged, redeployed from master, wrapped
+Branch `feat/rank2-thrust-census` merged `--no-ff` into master and redeployed so the manifest names master.
+The branch is fully contained in master and is safe to delete.
 
-## Last Action (2026-07-21) — Tasks 1-3 implemented, reviewed clean, deploying
-`LiveArcCensus.cs` (pure, 15 unit tests, 53 total) → `Diagnostics.RecordLiveArc` adapter + mission-report block
-→ one call on the `live-arc` reject path. All three task reviews came back SPEC OK / APPROVED.
-Plan gap found and fixed during Task 2: the main csproj is old-style and needs an explicit
-`<Compile Include>` for every new `.cs` — the test csproj entry alone does not build the mod.
+## ⚠️ TWO INSTRUMENT DEFECTS — fix BEFORE reusing this census for anything
+1. **`reach>=200` bucket is mis-calibrated.** Across ~9000 events only `<120` and `120-199` ever appeared;
+   native `mpitems.xml` tops out at `weapon_length=200`. The threshold came from an assumed "~3m spear" that
+   does not match this game (weapons cluster 100-200cm; crafted Handle pieces DO reach 295.5cm, so it is the
+   extreme tail, not impossible). **Re-bucket around 150/180/200.** The READ is sound — `WeaponLength` is a
+   plain int cm from the `weapon_length` XML attr (decompile-verified).
+2. **The `IN FRONT` line prints a misleading denominator** (`% of rank>=1`, which mixes in ~3000 sword
+   swings → reads 1% when the meaningful figure is 30%). Must be `% of rank>=1 polearm thrusts`.
+   This is the SAME denominator trap a review already caught on the reach line — it survived onto another
+   line. Pattern written up in the wiki: [[patterns-across-projects]].
 
 ## Deployed 2026-07-13
 - **`SpearPreferenceFork@10f2e06`** — **VALIDATED IN-GAME 2026-07-17, flapping stopped. CLOSED.** Schmitt trigger
@@ -34,20 +45,9 @@ Plan gap found and fixed during Task 2: the main csproj is old-style and needs a
   `EnableMissionTickDiagnostics`. The `TryRemove` is load-bearing and stays unconditional.
 
 ## ⏳ AWAITING MARK (ask before anything else)
-1. **Sprint 3 measurement battle.** Two MCM toggles first (both `RequireRestart=false`, no relaunch — but the
-   saved MCM JSON overrides the C# defaults, so both are mandatory):
-   - Debug → **Diagnostic Logging = ON**
-   - General → **Cramped Attack Gating = OFF** (it rewrites crowded AI horizontal swings to overheads, which
-     poisons the `dir` distribution; strike *type* is unaffected, so rows 2 and 4 survive it either way)
-
-   Then a **spear-heavy force in a packed order** (Shield Wall or Line), fought to a **normal end** — the
-   report is written by `OnEndMission`, so quitting out produces nothing. Read
-   `Documents/Mount and Blade II Bannerlord/PSW_diag.log`, `==== mission report ====`. The `live-arc`
-   section prints the §5 answers directly; do NOT hand-aggregate the raw keys. Check the cross-check line
-   first — `MISMATCH` voids the numbers. **Both toggles back to their old values afterwards.**
-
-   **An absent census block is NOT a result** — it is indistinguishable from "no rank≥1 rejections exist",
-   which is itself one of the decision-rule outcomes. Prove the block appears on a throwaway mission first.
+1. **Restore the two measurement toggles.** They were changed for the census run and are still set for it:
+   MCM → Proper Shield Walls → Debug → **Diagnostic Logging back OFF** (the log is already ~646 KB), and
+   General → **Cramped Attack Gating back ON**. Neither needs a restart.
 2. **Do heavy battles feel like SLOW MOTION?** — the dt-clamp question below. Still unasked/unanswered.
 
 ## PARKED (2026-07-13) — RBMAI re-emits its ENTIRE detour set every mission. Root NAMED, no symptom, NOT hunted.
@@ -152,10 +152,20 @@ native thunk is exactly the shape that yields a faulting address with no managed
 battles and see if the AVEs stop. Costs nothing to set up.
 
 ## Files to touch next
-**Sprint 3 is code-complete; the next move is Mark's battle, not an edit.** When his numbers land, apply the
-pre-registered decision rule in the spec §5 / plan Task 5, then write the result into `notes.md`.
-If Stage 2 goes ahead, the file is `Patches/WindupTransparencyPatch.cs` (the `live-arc` guard in `Classify`).
-If the dt-clamp thread opens instead: `MapEventNullFix/MapEventNullFix/Patches/MissionTickGuardPatch.cs`.
+**NEXT SESSION: brainstorm the WIELDING fix** (make rear-rank troops actually draw their polearm).
+Start from `superpowers:brainstorming` — no code until a design is approved. **It probably does NOT belong
+in this repo**: candidates are `RBMFork` (weapon selection / `AgentStatCalculateModel`) or
+`PickupMeleeWeapons`. Verify which before editing, and check each fork's edit model first
+([[reference_fork_edit_models]] — RBMFork is hand-maintained, SpearPreferenceFork is normalize-managed).
+
+**Dead on arrival, do not propose it:** RBM favour multipliers. `SpearPreferenceFork` resets melee/polearm
+favours to `1f` for every human, killing RBM's own multipliers game-wide, and Mark ruled that by design
+([[project_spearpreference_clobbers_rbm_favors]]). The lever that DOES work on same-class weapons is
+melee **damage** ([[project_troops_prefer_spears_diagnosis]]).
+
+If Stage 2's collision half is ever built, the file here is `Patches/WindupTransparencyPatch.cs` (the
+`live-arc` guard inside `Classify`) — and the open unknown is whether the native capsule sweep, once
+un-frozen by `ContinueChecking`, actually reaches the enemy behind. Only an in-game test settles that.
 Re-Read any file before editing — compaction wipes the harness's read-state.
 
 <!-- session-state-sync: last written by session 19291bfe at 2026-07-17 20:29:52 -0300 -->

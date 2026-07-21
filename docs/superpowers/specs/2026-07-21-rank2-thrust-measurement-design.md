@@ -2,7 +2,10 @@
 
 **Date:** 2026-07-21
 **Repo:** ProperShieldWalls
-**Status:** Design approved by Mark (approach A, measure-first). Not yet implemented.
+**Status:** **DONE — Stage 1 built, measured and ANSWERED 2026-07-21.** Merged to `master`. Row 3 fired:
+Blocker 2 is real, so Stage 2 is the **wielding fix first**. Result and numbers in `notes.md` (2026-07-21 pt2).
+Do not re-run Stage 1 as written — **two thresholds in this document are now known to be wrong**; see the
+correction boxes in §4.1 and §5 before reusing any of it.
 **Scope:** Stage 1 only. Stage 2 is sketched, not committed.
 
 ---
@@ -131,7 +134,17 @@ private static readonly Dictionary<string, int> _liveArcCensus = new Dictionary<
 |---|---|---|
 | attacker rank | `agent.GetFormationFileAndRankInfo(out file, out rank)` | `0`, `1`, `2`, `3+`, `detached` |
 | wielded weapon class | `agent.WieldedWeapon.CurrentUsageItem.WeaponClass` | verbatim enum name; `unarmed` when null |
-| weapon length | same `WeaponComponentData.WeaponLength` | `<120`, `120-199`, `200-279`, `280+` |
+| weapon length | same `WeaponComponentData.WeaponLength` | `<120`, `120-199`, `200-279`, `280+` — **MIS-CALIBRATED, see below** |
+
+> **CORRECTION (2026-07-21, learned from the measurement itself) — the length buckets are wrong.**
+> Across ~9,000 events in two battles, **only `<120` and `120-199` ever appeared**; `200-279` and `280+`
+> never occurred once. Native `mpitems.xml`'s entire roster tops out at `weapon_length=200`. The buckets
+> were built on my assumption of "~3 m spears", which does not match this game's data — Bannerlord melee
+> weapons cluster around 100–200 cm. Long weapons *are* constructible (crafted Handle pieces reach 295.5 cm
+> in `crafting_pieces.xml`), so ≥200 is the extreme tail rather than impossible.
+> **Re-bucket around 150 / 180 / 200 before reusing this instrument.**
+> The reading itself is sound: `WeaponComponentData.WeaponLength` was verified by decompile to be a plain
+> `int` in cm parsed from the `weapon_length` XML attribute.
 | strike type | `cd.StrikeType` | `Thrust` / `Swing` |
 | attack direction | `cd.AttackDirection` | verbatim enum name |
 
@@ -209,6 +222,18 @@ have produced a confidently incorrect verdict:
 | 2 | Rank ≥ 1 **polearm Thrusts** are **≥ 20%** | weapon strikes (`alt=0`) | Blocker 2 is not real | The collision fix alone |
 | 3 | Rank ≥ 1 rejects exist (≥ 5%) but **< 20%** carry reach ≥ 200 | **of rank ≥ 1** | Blocker 2 is real — rear ranks hold short weapons | Wielding fix **first**; collision fix alone would have been wasted |
 | 4 | Rank ≥ 1 **polearm** rejects are **majority Swing**, not Thrust | **of rank ≥ 1 polearms** | Rear ranks hold spears and swing them | A usage-direction problem, not a collision one |
+
+> **RESULT (2026-07-21, packed Shield Wall, 6296 rejects, cross-check MATCH): ROW 3 FIRED.**
+> rank≥1 = 80.6% (row 1 no), rank≥1 polearm Thrust = 2.6% (row 2 no), reach≥200 = 0.0% of rank≥1 → row 3.
+> **The verdict does NOT rest on the mis-calibrated ≥200 threshold:** counting polearms of *any* length,
+> rear ranks wield one in only **108 of 3387 rank≥1 strikes (3.2%)** and **88.2% of their strikes are
+> Swings**. They attack constantly; they are holding swords. Blocker 2 confirmed by two independent readings.
+>
+> **A second correction, and it nearly caused a wrong call:** the `IN FRONT` line must be read against
+> **rank≥1 polearm thrusts**, not against `% of rank≥1` — the latter mixes in ~3000 sword swings and reads
+> ~1%. Correctly: **9/282 = 3.2% in a loose Line, 32/108 = 29.6% in a packed Shield Wall.** So the Stage 2
+> premise is sound in packed order, and formation is the deciding variable. The instrument still prints the
+> misleading denominator on that line — **fix before reusing.**
 
 **Two caveats that cap how far row 2 can be trusted:**
 
