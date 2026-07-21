@@ -108,7 +108,15 @@ namespace ProperShieldWalls.Patches
                 || collisionData.AttackProgress < settings.WindupThreshold;
 
             // A live strike arc: an ally in front still stops the blade.
-            if (!windup) return "live-arc";
+            //
+            // Stage 1 measurement (2026-07-21): before deciding whether to let rank-2 spearmen thrust
+            // past their allies, record WHO is being turned away here — rank, weapon, reach, strike
+            // type. Observation only; the rejection below is unchanged.
+            if (!windup)
+            {
+                Diagnostics.RecordLiveArc(attacker, ref collisionData);
+                return "live-arc";
+            }
 
             return null;
         }
