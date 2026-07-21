@@ -303,3 +303,27 @@ could matter is the **unresolved 2026-07-12 hard freeze and the native AVEs**: a
 the shape that produces a faulting address with no managed stack. The cheap test (disable AIKickNBash for a few
 battles, see if the AVEs stop) costs nothing and is not being run tonight. **Do not upgrade this to a cause without
 evidence** — that is the mistake this project has made repeatedly, and naming it as unverified is the point.
+
+## 2026-07-21 (pt3, touched from the bannerlordmodding hub session): the wielding fix landed ELSEWHERE — pointer only
+
+No PSW code changed. Recording where Stage 2's wielding half went, so nobody re-derives it here.
+
+**It is `SpearPreferenceFork`, not RBMFork or PickupMeleeWeapons** (branch `feat/rear-rank-spear-wield`,
+19 commits, 42 unit tests, built + deployed + hash-verified 2026-07-21). The handoff guessed RBMFork; the
+guess was wrong and the reason matters: **the root cause was SpearPreferenceFork's own sidearm Schmitt
+trigger being rank-blind.** It counts dismounted enemies within 2.0 m (3.5 m once latched) and sets
+`AiWeaponFavorMultiplierMelee = (num-num2)*20`, which beats the spear's polearm 10 — so a second-rank man
+~2 m from the enemy his front-rank neighbour is fighting trips "an enemy is on top of me" while never
+being in contact. That model is the **last writer** of those multipliers, so this was never the
+dead-on-arrival RBM-favour path. Fix: the radius is now rank-dependent (`RearRankSidearmDistance` 1.2 m,
+`RearRankMinIndex` 1), with **no** hysteresis widening for rear ranks — 1.2+1.5=2.7 m would be wider than
+a second-ranker stands from the enemy, so any rear-ranker that ever latched would have been stuck on its
+sword for the whole battle, in exactly the test battle.
+
+**What PSW is on the hook for:** SpearPreferenceFork's census records the mod's preference *decision*
+(kept vs switched), **never the actual wield** — so it calibrates its own settings but cannot confirm the
+fix worked. The outcome metric (polearm-wield %) only comes from PSW's census. **If one battle is to both
+calibrate and validate, `DiagnosticLogging` must be armed here in the same battle.** Before reusing this
+census, fix the two defects already recorded in SESSION-STATE (the `reach>=200` bucketing and the
+`IN FRONT` denominator) — the second is the same wrong-denominator trap that then recurred inside
+SpearPreferenceFork's new instrument and was caught only by the final review.

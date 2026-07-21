@@ -152,11 +152,19 @@ native thunk is exactly the shape that yields a faulting address with no managed
 battles and see if the AVEs stop. Costs nothing to set up.
 
 ## Files to touch next
-**NEXT SESSION: brainstorm the WIELDING fix** (make rear-rank troops actually draw their polearm).
-Start from `superpowers:brainstorming` — no code until a design is approved. **It probably does NOT belong
-in this repo**: candidates are `RBMFork` (weapon selection / `AgentStatCalculateModel`) or
-`PickupMeleeWeapons`. Verify which before editing, and check each fork's edit model first
-([[reference_fork_edit_models]] — RBMFork is hand-maintained, SpearPreferenceFork is normalize-managed).
+**The wielding fix is DONE and lives in `~/AI/projects/SpearPreferenceFork`** (branch
+`feat/rear-rank-spear-wield`, shipped + deployed 2026-07-21). It did not land in RBMFork or
+PickupMeleeWeapons: the root cause was `SpearPreferenceFork`'s OWN sidearm Schmitt trigger being
+rank-blind, so a second-rank man ~2 m from the enemy his neighbour is fighting tripped the "enemy on top
+of me, draw the sidearm" rule. That model is the LAST WRITER of the favour multipliers, so this was never
+the dead-on-arrival RBM-favour path. See that repo's `.claude/SESSION-STATE.md` and
+`docs/superpowers/specs/2026-07-21-rear-rank-spear-wielding-design.md`.
+
+**What this repo may be asked for next:** if one battle is to both calibrate the new settings AND validate
+the fix, **PSW's `DiagnosticLogging` must be armed in the same battle** — SpearPreferenceFork's census
+records the mod's preference *decision*, never the actual wield, so the polearm-wield outcome number can
+only come from here. The two instrument defects noted above (reach bucketing, `IN FRONT` denominator) are
+still unfixed and must be fixed before this census is reused.
 
 **Dead on arrival, do not propose it:** RBM favour multipliers. `SpearPreferenceFork` resets melee/polearm
 favours to `1f` for every human, killing RBM's own multipliers game-wide, and Mark ruled that by design
