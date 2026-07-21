@@ -1,5 +1,50 @@
 # ProperShieldWalls — AI Handoff Log
 
+## 2026-07-21: rank-2 thrust census ARMED — battle 1 is a VALID INSTRUMENT RUN but an OUT-OF-SPEC SAMPLE
+
+Stage 1 instrument (branch `feat/rank2-thrust-census`, 9 commits, 95 tests, deployed `fac57bd`) fired correctly
+on its first battle. **The instrument is proven; the decision rule is NOT yet answered.**
+
+### The instrument works
+`cross-check vs windup rejects[live-arc]=2691: MATCH`. Every field populated, `detached` only 4 (0.2%), the new
+`other-formation` bucket appeared (x2) so the same-formation guard is live. Arming gate PASSED.
+
+**The alt-attack fix demonstrably mattered: 799 of 2691 rejects (29.7%) are alternative attacks** — friendly
+kicks/shield-bashes, tagged with the attacker's *wielded* weapon. Without the fix they would have sat in the
+denominator, reading rank>=1 as 58.8% instead of 83.6% and polearm-Thrust as 10.5% instead of 14.9%. The review
+that caught this was worth its cost.
+
+### Battle 1 numbers (weapon strikes = 1892, alt excluded)
+- rank>=1: **1581 (83.6%)** — rear ranks attack constantly. Row 1 (<5%) does not fire.
+- rank>=1 polearm Thrust: **282 (14.9% of weapon strikes, 17.8% of rank>=1)** — row 2 needs >=20%, does not fire.
+- rank>=1 with reach>=200: **0 (0.0%)** — *zero*, not merely low.
+- rank>=1 polearm Thrust vs Swing: **282 vs 0** (100% Thrust) — row 4 does not fire.
+- rank>=1 polearm Thrust IN FRONT (rel=front): **9 (0.6% of rank>=1)**.
+
+### Why this is NOT the measurement, and the rule was NOT applied
+The spec calls for a **spear-heavy force in a packed order**. This battle was neither:
+- **Formation census shows ONLY `Line spacing=2 interval=0.760` x1428 — no Shield Wall, no Square.** Loose order.
+- **`OneHandedSword` dominates the census overwhelmingly**; polearms are a minority and *every one* logged as
+  `len=120-199`. Zero >=200cm weapons is a genuine property of this sample, not a bad read — verified that
+  Native `crafting_pieces.xml` has pieces up to 295.5cm, so long polearms exist and would have bucketed.
+
+Applying the rule here would fire row 3 ("Blocker 2 is real — rear ranks hold short weapons") **purely because
+this army carried swords and short spears**. That is the CLAUDE.md "dormant in the case you MEASURED is not the
+same as INNOCENT" trap: concluding from a sample that could not have shown the alternative.
+
+### The finding that may matter more than the rule
+**`rel=other-file` dominates; `rel=front` is almost nothing (9 of 1581 rank>=1 events).** The men blocking these
+strikes are overwhelmingly in *other files*, not the man directly ahead. If that survives into a packed Shield
+Wall, the Stage 2 premise ("let him thrust past the man in front") addresses a case that barely occurs — the real
+obstruction would be lateral neighbours, which forward transparency does not help.
+**Do not over-read it yet:** at `spacing=2` the files ARE spread, so lateral collisions dominating is exactly what
+a loose Line predicts. This is precisely the variable the packed-order battle exists to change.
+
+### Next
+Battle 2, to spec: **Shield Wall** (or Square), **spear-heavy** troops, normal end, `cramped=0` again
+(it was correctly 0 this run). Then apply §5. Both toggles back off afterwards.
+
+
 ---
 
 ## 2026-07-17 — weapon-flapping fix VALIDATED in-game, item CLOSED
