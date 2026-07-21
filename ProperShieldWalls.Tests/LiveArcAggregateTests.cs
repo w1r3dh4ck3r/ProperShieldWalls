@@ -265,4 +265,44 @@ public class LiveArcAggregateTests
 
         Assert.Contains(lines, l => l.Contains("Invalid") && l.Contains("not a bug"));
     }
+
+    // --- FIX: §5 row 4 total denominator ---
+
+    [Fact]
+    public void PolearmThrustVsSwing_WithInvalidStrikeTypes_ReportsTotalAndPercentages()
+    {
+        var agg = new LiveArcAggregate();
+        // 3 rank>=1 polearm Thrusts (strikeType=1)
+        for (int i = 0; i < 3; i++)
+            agg.Add(1, "TwoHandedPolearm", 300, 1, false, "front");
+        // 4 rank>=1 polearm Swings (strikeType=0)
+        for (int i = 0; i < 4; i++)
+            agg.Add(1, "TwoHandedPolearm", 300, 0, false, "front");
+        // 5 rank>=1 polearm Invalid strikes (strikeType=2, neither Thrust nor Swing)
+        for (int i = 0; i < 5; i++)
+            agg.Add(1, "TwoHandedPolearm", 300, 2, false, "front");
+
+        var lines = agg.Render(agg.Total);
+
+        // The line should show: rank>=1 polearm Thrust: 3 vs polearm Swing: 4   (of 12 rank>=1 polearms: 25.0% Thrust, 33.3% Swing)
+        Assert.Contains(lines, l =>
+            l.Contains("rank>=1 polearm Thrust: 3 vs polearm Swing: 4") &&
+            l.Contains("of 12 rank>=1 polearms") &&
+            l.Contains("25.0%") &&
+            l.Contains("33.3%"));
+    }
+
+    [Fact]
+    public void PolearmThrustVsSwing_ZeroRankOnePlusPolearms_RendersZeroPercentOfRankOnePlusPolearms_NoDivideByZero()
+    {
+        var agg = new LiveArcAggregate();
+        agg.Add(1, "OneHandedSword", 100, 0, false, "front"); // rank>=1 but not polearm
+
+        var lines = agg.Render(agg.Total);
+
+        Assert.Contains(lines, l =>
+            l.Contains("rank>=1 polearm Thrust: 0 vs polearm Swing: 0") &&
+            l.Contains("of 0 rank>=1 polearms") &&
+            l.Contains("0.0%"));
+    }
 }

@@ -22,6 +22,7 @@ namespace ProperShieldWalls
         private int _rank1Plus;
         private int _rank1PlusPolearmThrust;
         private int _rank1PlusPolearmSwing;
+        private int _rank1PlusPolearm;
         private int _rank1PlusReach200;
         private int _rank1PlusThrust;
         private int _rank1PlusSwing;
@@ -58,6 +59,7 @@ namespace ProperShieldWalls
             bool isThrust = strikeType == 1;
             bool isSwing = strikeType == 0;
 
+            if (isPolearm) _rank1PlusPolearm++;
             if (isPolearm && isThrust) _rank1PlusPolearmThrust++;
             if (isPolearm && isSwing) _rank1PlusPolearmSwing++;
             if (weaponLength >= 200) _rank1PlusReach200++;
@@ -122,8 +124,12 @@ namespace ProperShieldWalls
             // F2: §5 row 4 asks whether POLEARM rejects are majority Swing, not whether rank>=1
             // as a whole is. Printed alongside (not replacing) the all-weapon Thrust-vs-Swing line
             // above, so a sword-heavy rear rank can no longer masquerade as the polearm answer.
+            // FIX: Report the total rank>=1 polearm count and percentages, so the reader can see
+            // the true Swing percentage even when Invalid strike types exist.
             lines.Add(string.Format(CultureInfo.InvariantCulture,
-                "rank>=1 polearm Thrust: {0} vs polearm Swing: {1}", _rank1PlusPolearmThrust, _rank1PlusPolearmSwing));
+                "rank>=1 polearm Thrust: {0} vs polearm Swing: {1}   (of {2} rank>=1 polearms: {3}% Thrust, {4}% Swing)",
+                _rank1PlusPolearmThrust, _rank1PlusPolearmSwing, _rank1PlusPolearm,
+                PctOfRankOnePlusPolearm(_rank1PlusPolearmThrust), PctOfRankOnePlusPolearm(_rank1PlusPolearmSwing)));
 
             // F1 applies here too: _rank1PlusPolearmThrustFront <= _rank1Plus by construction,
             // same shape as reach>=200 above, so this line needs the same second denominator.
@@ -155,6 +161,21 @@ namespace ProperShieldWalls
         {
             if (_rank1Plus == 0) return "0.0";
             double pct = 100.0 * n / _rank1Plus;
+            return pct.ToString("0.0", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
+        /// Percentage of the rank>=1 polearm population specifically, guarded independently
+        /// against divide-by-zero. §5 row 4 asks whether rank>=1 polearms are majority Swing,
+        /// not whether they are majority among all rank>=1 strikes. This denominator isolates
+        /// the polearm population to answer that question. When Invalid strike types exist
+        /// (neither Thrust nor Swing), this denominator reveals the true Thrust and Swing
+        /// percentages within the polearm population.
+        /// </summary>
+        private string PctOfRankOnePlusPolearm(int n)
+        {
+            if (_rank1PlusPolearm == 0) return "0.0";
+            double pct = 100.0 * n / _rank1PlusPolearm;
             return pct.ToString("0.0", CultureInfo.InvariantCulture);
         }
     }
