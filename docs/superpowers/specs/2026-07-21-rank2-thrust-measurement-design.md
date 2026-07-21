@@ -138,10 +138,18 @@ private static readonly Dictionary<string, int> _liveArcCensus = new Dictionary<
 
 > **CORRECTION (2026-07-21, learned from the measurement itself) — the length buckets are wrong.**
 > Across ~9,000 events in two battles, **only `<120` and `120-199` ever appeared**; `200-279` and `280+`
-> never occurred once. Native `mpitems.xml`'s entire roster tops out at `weapon_length=200`. The buckets
-> were built on my assumption of "~3 m spears", which does not match this game's data — Bannerlord melee
-> weapons cluster around 100–200 cm. Long weapons *are* constructible (crafted Handle pieces reach 295.5 cm
-> in `crafting_pieces.xml`), so ≥200 is the extreme tail rather than impossible.
+> never occurred once. The buckets were built on my assumption of "~3 m spears", which does not match this
+> game's data — Bannerlord melee weapons cluster around 100–200 cm.
+>
+> **VERIFIED — two independent pre-defined rosters both top out at exactly `weapon_length=200`:**
+> `Native/ModuleData/mpitems.xml`, and `SandBoxCore/ModuleData/items/weapons.xml` (74 weapons carrying both
+> class and length; its single `TwoHandedPolearm` is 200, and it contains no `OneHandedPolearm` at all —
+> so singleplayer polearms are predominantly **crafted**, not table-defined).
+>
+> **INFERENCE, NOT VERIFIED:** that crafted weapons can exceed 200. `crafting_pieces.xml` has Handle pieces
+> up to 295.5 cm, but piece length is not proven to equal the finished `WeaponLength` — I did not verify the
+> summation rule. Treat "≥200 is the extreme tail rather than impossible" as a hypothesis. If a future
+> re-bucketing depends on it, **check how a crafted weapon's length is actually computed first.**
 > **Re-bucket around 150 / 180 / 200 before reusing this instrument.**
 > The reading itself is sound: `WeaponComponentData.WeaponLength` was verified by decompile to be a plain
 > `int` in cm parsed from the `weapon_length` XML attribute.
