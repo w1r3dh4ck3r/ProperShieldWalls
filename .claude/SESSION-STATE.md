@@ -1,20 +1,26 @@
 # Session State — ProperShieldWalls
 
-## Current Task
-**PSW itself is DONE and MERGED** (`9fae4a1`, master, 38/38 tests). No PSW code touched for seven sessions; this
-repo is now just the handoff home for the wider Bannerlord modlist work.
+## Current Task — SPRINT 3: rank-2 thrust census (Stage 1 MEASUREMENT), branch `feat/rank2-thrust-census`
+PSW code is live again after seven idle sessions. Mark's goal: **rear-rank spearmen should thrust over their
+allies' heads into the enemy front rank.** Stage 1 changes NO gameplay — it only records who the existing
+`live-arc` guard turns away (rank / weapon class / reach / strike type / attack direction), so Stage 2 is
+designed on data instead of a guess.
 
-**Weapon-flapping fix VALIDATED and CLOSED** by Mark (2026-07-17): the flapping stopped. A full stop means the
-flappers were spearmen toggling spear↔sidearm — the only troops `SpearPreferenceFork` touches — so the
-"is there a second cause outside the mod?" discriminator is answered NO. One item remains open (the slow-mo
-question); nothing else is queued.
+Spec: `docs/superpowers/specs/2026-07-21-rank2-thrust-measurement-design.md`
+Plan: `docs/superpowers/plans/2026-07-21-rank2-thrust-measurement.md`
+Ledger: `.superpowers/sdd/progress.md` (Sprint 3 section) — **read this before re-dispatching anything.**
 
-## Last Action (2026-07-17) — closed the weapon-flapping item on Mark's in-game verdict
-Mark confirmed the flapping stopped. Since a full stop is exactly what `SpearPreferenceFork` predicts (its Schmitt
-trigger only governs polearm carriers), the "were the flappers spearmen, or is there a second cause?" discriminator
-resolves to NO second cause. Marked `SpearPreferenceFork@10f2e06` VALIDATED/CLOSED in the Deployed section and
-removed it from AWAITING. Doc-only change to this file; no code, no rebuild, no deploy. The only remaining
-in-game question is the slow-mo (dt-clamp) one.
+**Two blockers, not one** (this is the thing not to re-derive): (1) the ally's capsule eats the thrust —
+defeated by `MeleeCollisionReaction.ContinueChecking`, which this mod already uses for wind-up and
+deliberately declines for a live arc (`WindupTransparencyPatch.cs`, the `live-arc` guard); (2) rear ranks may
+not be wielding polearms at all (Mark's own 2026-07-10 note). **If (2) is real, fixing (1) alone buys nothing.**
+Stage 1 exists to tell them apart.
+
+## Last Action (2026-07-21) — Tasks 1-3 implemented, reviewed clean, deploying
+`LiveArcCensus.cs` (pure, 15 unit tests, 53 total) → `Diagnostics.RecordLiveArc` adapter + mission-report block
+→ one call on the `live-arc` reject path. All three task reviews came back SPEC OK / APPROVED.
+Plan gap found and fixed during Task 2: the main csproj is old-style and needs an explicit
+`<Compile Include>` for every new `.cs` — the test csproj entry alone does not build the mod.
 
 ## Deployed 2026-07-13
 - **`SpearPreferenceFork@10f2e06`** — **VALIDATED IN-GAME 2026-07-17, flapping stopped. CLOSED.** Schmitt trigger
@@ -27,9 +33,16 @@ in-game question is the slow-mo (dt-clamp) one.
   `SubModule.Log` also does a `Debug.Print` and a UDP datagram per call. Now gated behind
   `EnableMissionTickDiagnostics`. The `TryRemove` is load-bearing and stays unconditional.
 
-## ⏳ AWAITING IN-GAME VALIDATION (ask Mark before anything else)
-The weapon-flapping question is CLOSED (validated 2026-07-17 — see the Deployed section). One question remains:
-- **Do heavy battles feel like SLOW MOTION?** — see the dt-clamp section below. Still unasked/unanswered.
+## ⏳ AWAITING MARK (ask before anything else)
+1. **Sprint 3 measurement battle.** MCM → Proper Shield Walls → Debug → **Diagnostic Logging = ON**
+   (`RequireRestart=false`, no relaunch; the saved MCM JSON overrides the C# default of `false`, so this step
+   is mandatory). Then a **spear-heavy force in a packed order** (Shield Wall or Line), fought to a **normal
+   end** — the report is written by `OnEndMission`, so quitting out produces nothing. Read
+   `Documents/Mount and Blade II Bannerlord/PSW_diag.log`, `==== mission report ====` →
+   `live-arc census`. **Turn logging back OFF afterwards.**
+   **An absent census block is NOT a result** — it is indistinguishable from "no rank≥1 rejections exist",
+   which is itself one of the decision-rule outcomes. Prove the block appears on a throwaway mission first.
+2. **Do heavy battles feel like SLOW MOTION?** — the dt-clamp question below. Still unasked/unanswered.
 
 ## PARKED (2026-07-13) — RBMAI re-emits its ENTIRE detour set every mission. Root NAMED, no symptom, NOT hunted.
 This is the `HarmonySharedState.originals +230/battle` item the census logged and nobody chased. **It is NOT a
@@ -133,8 +146,10 @@ native thunk is exactly the shape that yields a faulting address with no managed
 battles and see if the AVEs stop. Costs nothing to set up.
 
 ## Files to touch next
-**Nothing is queued** — both deployed changes are waiting on Mark, not on code. If the dt-clamp thread opens:
-`MapEventNullFix/MapEventNullFix/Patches/MissionTickGuardPatch.cs`.
+**Sprint 3 is code-complete; the next move is Mark's battle, not an edit.** When his numbers land, apply the
+pre-registered decision rule in the spec §5 / plan Task 5, then write the result into `notes.md`.
+If Stage 2 goes ahead, the file is `Patches/WindupTransparencyPatch.cs` (the `live-arc` guard in `Classify`).
+If the dt-clamp thread opens instead: `MapEventNullFix/MapEventNullFix/Patches/MissionTickGuardPatch.cs`.
 Re-Read any file before editing — compaction wipes the harness's read-state.
 
-<!-- session-state-sync: last written by session 19291bfe at 2026-07-17 20:26:54 -0300 -->
+<!-- session-state-sync: last written by session 19291bfe at 2026-07-17 20:29:52 -0300 -->
