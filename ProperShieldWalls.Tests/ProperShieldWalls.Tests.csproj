@@ -14,6 +14,7 @@
     <Compile Include="../AttackRemap.cs" Link="AttackRemap.cs" />
     <Compile Include="../ShieldRotation.cs" Link="ShieldRotation.cs" />
     <Compile Include="../LiveArcCensus.cs" Link="LiveArcCensus.cs" />
+    <Compile Include="../LiveArcAggregate.cs" Link="LiveArcAggregate.cs" />
   </ItemGroup>
 
   <ItemGroup>

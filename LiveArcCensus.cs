@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 
 namespace ProperShieldWalls
@@ -54,19 +55,53 @@ namespace ProperShieldWalls
         }
 
         internal static string BuildKey(
-            int rankIndex, string weaponClassName, int weaponLength, int strikeType, string attackDirection)
+            int rankIndex, string weaponClassName, int weaponLength,
+            int strikeType, string attackDirection,
+            bool isAlternativeAttack, string relativePosition)
         {
             string weapon = string.IsNullOrEmpty(weaponClassName) ? "unarmed" : weaponClassName;
             string direction = string.IsNullOrEmpty(attackDirection) ? "?" : attackDirection;
+            string rel = string.IsNullOrEmpty(relativePosition) ? "unknown" : relativePosition;
 
             return string.Format(
                 CultureInfo.InvariantCulture,
-                "rank={0,-8} wpn={1,-20} len={2,-8} strike={3,-7} dir={4}",
+                "rank={0,-8} wpn={1,-20} len={2,-8} strike={3,-7} dir={4} alt={5} rel={6}",
                 RankBucket(rankIndex),
                 weapon,
                 LengthBucket(weaponLength),
                 StrikeLabel(strikeType),
-                direction);
+                direction,
+                isAlternativeAttack ? 1 : 0,
+                rel);
+        }
+
+        /// <summary>
+        /// Buckets the victim's position relative to the attacker, using the SAME
+        /// GetFormationFileAndRankInfo idiom (and -1-means-detached contract) as the attacker side.
+        ///
+        /// Honesty check: same-file-and-lower-rank is a PARTIAL discriminator for "the victim was
+        /// in front of the attacker's blade" -- it says nothing about facing, so a victim standing
+        /// shoulder-to-shoulder but turned sideways still buckets as "front". It does not settle
+        /// whether forward transparency would actually have helped; it only narrows the population
+        /// worth asking that question about.
+        /// </summary>
+        internal static string RelativePosition(int attackerFile, int attackerRank, int victimFile, int victimRank)
+        {
+            if (attackerFile < 0 || attackerRank < 0 || victimFile < 0 || victimRank < 0) return "unknown";
+            if (attackerFile != victimFile) return "other-file";
+            if (victimRank < attackerRank) return "front";
+            if (victimRank == attackerRank) return "same-rank";
+            return "behind";
+        }
+
+        /// <summary>
+        /// True for any weapon class whose name contains "Polearm" (OneHandedPolearm, TwoHandedPolearm).
+        /// Javelin is deliberately NOT counted here: what we are measuring is reach, which a javelin lacks.
+        /// </summary>
+        internal static bool IsPolearmClass(string weaponClassName)
+        {
+            if (string.IsNullOrEmpty(weaponClassName)) return false;
+            return weaponClassName.IndexOf("Polearm", StringComparison.Ordinal) >= 0;
         }
     }
 }

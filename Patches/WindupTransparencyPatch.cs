@@ -114,7 +114,7 @@ namespace ProperShieldWalls.Patches
             // type. Observation only; the rejection below is unchanged.
             if (!windup)
             {
-                Diagnostics.RecordLiveArc(attacker, ref collisionData);
+                Diagnostics.RecordLiveArc(attacker, victim, ref collisionData);
                 return "live-arc";
             }
 
