@@ -13,6 +13,8 @@
     <!-- AttackRemap.cs does not exist yet (Task 3 creates it); restored in Task 3 Step 1. -->
     <Compile Include="../AttackRemap.cs" Link="AttackRemap.cs" />
     <Compile Include="../ShieldRotation.cs" Link="ShieldRotation.cs" />
+    <Compile Include="../LiveArcCensus.cs" Link="LiveArcCensus.cs" />
+    <Compile Include="../LiveArcAggregate.cs" Link="LiveArcAggregate.cs" />
   </ItemGroup>
 
   <ItemGroup>

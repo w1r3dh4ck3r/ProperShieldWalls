@@ -4,6 +4,8 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using MCM.Abstractions.Base.Global;
+using TaleWorlds.Core;
+using TaleWorlds.MountAndBlade;
 
 namespace ProperShieldWalls
 {
@@ -46,6 +48,10 @@ namespace ProperShieldWalls
         private static int _windupBypassed;
         private static readonly Dictionary<string, int> _windupRejects = new Dictionary<string, int>();
 
+        // --- Live-arc census (Stage 1 measurement: who is the live-arc guard turning away?) ---
+        private static readonly Dictionary<string, int> _liveArcCensus = new Dictionary<string, int>();
+        private static LiveArcAggregate _liveArcAggregate = new LiveArcAggregate();
+
         // --- Friendly block passthrough ---
         private static int _friendlyBlocksNeutralised;
 
@@ -84,6 +90,8 @@ namespace ProperShieldWalls
             _remappedAgents.Clear();
             _windupBypassed = 0;
             _windupRejects.Clear();
+            _liveArcCensus.Clear();
+            _liveArcAggregate = new LiveArcAggregate();
             _friendlyBlocksNeutralised = 0;
             _rotationSwaps = 0;
             _rotationShieldlessFront = 0;
@@ -120,6 +128,95 @@ namespace ProperShieldWalls
             int n;
             _windupRejects.TryGetValue(rejectedBecause, out n);
             _windupRejects[rejectedBecause] = n + 1;
+        }
+
+        /// <summary>
+        /// One live-arc rejection. Reads rank/weapon off the attacker and rank off the victim here
+        /// rather than at the call site, so the [MBCallback] patch stays a one-liner.
+        ///
+        /// Counted unconditionally, matching RecordWindup: only the report WRITE is gated on the
+        /// DiagnosticLogging setting. The path is already filtered to friendly collisions by the
+        /// patch's own `enemy` guard, so the volume is bounded (~1071/mission as measured 2026-07-10).
+        ///
+        /// Fix 1 (alternative attacks): AttackCollisionData.IsAlternativeAttack is read and passed
+        /// through into both the key and the aggregate, NOT filtered here — the exclusion from the
+        /// §5 percentage rows is a read-time decision made in LiveArcAggregate, so the raw census
+        /// still shows every alternative attack that reached this guard.
+        ///
+        /// Fix 2 (relative position): the victim's file/rank is read with the SAME idiom and the
+        /// SAME -1-detached contract as the attacker's, inside the same try/catch, so a failed read
+        /// degrades to "unknown" rather than dropping the sample.
+        ///
+        /// Fix 3 (formation identity, 2026-07-21): file/rank indices from GetFormationFileAndRankInfo
+        /// are PER-FORMATION. A friendly collision between two adjacent formations -- common in a
+        /// melee -- can bucket as "front" by index coincidence even though the two agents are not in
+        /// the same formation at all. sameFormation is checked BEFORE RelativePosition is consulted;
+        /// when it is false (or the read throws) the bucket is the honest "other-formation", never a
+        /// silent fall-through to "front".
+        /// </summary>
+        internal static void RecordLiveArc(Agent attacker, Agent victim, ref AttackCollisionData cd)
+        {
+            if (attacker == null) return;
+
+            int attackerFileIndex = -1;
+            int rankIndex = -1;
+            int victimFileIndex = -1;
+            int victimRankIndex = -1;
+            string weaponClassName = null;
+            int weaponLength = 0;
+            // Safe default: never "front" unless same-formation is confirmed AND RelativePosition
+            // itself resolves it below.
+            string relativePosition = LiveArcCensus.OtherFormationBucket;
+
+            try
+            {
+                // Same idiom (and the same -1 detached contract) as ShieldRotationBehavior.
+                attacker.GetFormationFileAndRankInfo(out attackerFileIndex, out rankIndex);
+
+                bool sameFormation = victim != null && ReferenceEquals(attacker.Formation, victim.Formation);
+
+                if (victim != null)
+                    victim.GetFormationFileAndRankInfo(out victimFileIndex, out victimRankIndex);
+
+                relativePosition = sameFormation
+                    ? LiveArcCensus.RelativePosition(attackerFileIndex, rankIndex, victimFileIndex, victimRankIndex)
+                    : LiveArcCensus.OtherFormationBucket;
+
+                // Same idiom as AttackGatePatches.CanSwing: null when unarmed.
+                WeaponComponentData weapon = attacker.WieldedWeapon.CurrentUsageItem;
+                if (weapon != null)
+                {
+                    weaponClassName = weapon.WeaponClass.ToString();
+                    // WeaponLength is an int on v1.4.7. If the build reports a type mismatch here,
+                    // wrap it: (int)weapon.WeaponLength — do not change the census signature.
+                    weaponLength = weapon.WeaponLength;
+                }
+            }
+            catch
+            {
+                // A diagnostic must never take the game down, and this runs per collision. Record
+                // what we managed to read rather than dropping the sample entirely; a key with
+                // wpn=unarmed / rel=other-formation is still a countable event -- and never "front".
+                relativePosition = LiveArcCensus.OtherFormationBucket;
+            }
+
+            bool isAlternativeAttack = cd.IsAlternativeAttack;
+
+            string key = LiveArcCensus.BuildKey(
+                rankIndex,
+                weaponClassName,
+                weaponLength,
+                cd.StrikeType,               // raw; LiveArcCensus.StrikeLabel maps it three ways
+                cd.AttackDirection.ToString(),
+                isAlternativeAttack,
+                relativePosition);
+
+            int n;
+            _liveArcCensus.TryGetValue(key, out n);
+            _liveArcCensus[key] = n + 1;
+
+            _liveArcAggregate.Add(rankIndex, weaponClassName, weaponLength, cd.StrikeType,
+                isAlternativeAttack, relativePosition);
         }
 
         internal static void RecordFriendlyBlockNeutralised()
@@ -237,6 +334,24 @@ namespace ProperShieldWalls
             else
             {
                 foreach (var kv in _formationCensus)
+                    Append(string.Format(CultureInfo.InvariantCulture,
+                        "[PSW]        {0}  x{1}", kv.Key, kv.Value));
+            }
+
+            Append("[PSW]      live-arc aggregate (pre-registered §5 answers):");
+            int windupLiveArc;
+            _windupRejects.TryGetValue("live-arc", out windupLiveArc);
+            foreach (var line in _liveArcAggregate.Render(windupLiveArc))
+                Append("[PSW]        " + line);
+
+            Append("[PSW]      live-arc census (who the guard turned away):");
+            if (_liveArcCensus.Count == 0)
+            {
+                Append("[PSW]        (no live-arc rejections seen at all)");
+            }
+            else
+            {
+                foreach (var kv in _liveArcCensus)
                     Append(string.Format(CultureInfo.InvariantCulture,
                         "[PSW]        {0}  x{1}", kv.Key, kv.Value));
             }
