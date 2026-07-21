@@ -146,6 +146,13 @@ namespace ProperShieldWalls
         /// Fix 2 (relative position): the victim's file/rank is read with the SAME idiom and the
         /// SAME -1-detached contract as the attacker's, inside the same try/catch, so a failed read
         /// degrades to "unknown" rather than dropping the sample.
+        ///
+        /// Fix 3 (formation identity, 2026-07-21): file/rank indices from GetFormationFileAndRankInfo
+        /// are PER-FORMATION. A friendly collision between two adjacent formations -- common in a
+        /// melee -- can bucket as "front" by index coincidence even though the two agents are not in
+        /// the same formation at all. sameFormation is checked BEFORE RelativePosition is consulted;
+        /// when it is false (or the read throws) the bucket is the honest "other-formation", never a
+        /// silent fall-through to "front".
         /// </summary>
         internal static void RecordLiveArc(Agent attacker, Agent victim, ref AttackCollisionData cd)
         {
@@ -157,14 +164,23 @@ namespace ProperShieldWalls
             int victimRankIndex = -1;
             string weaponClassName = null;
             int weaponLength = 0;
+            // Safe default: never "front" unless same-formation is confirmed AND RelativePosition
+            // itself resolves it below.
+            string relativePosition = LiveArcCensus.OtherFormationBucket;
 
             try
             {
                 // Same idiom (and the same -1 detached contract) as ShieldRotationBehavior.
                 attacker.GetFormationFileAndRankInfo(out attackerFileIndex, out rankIndex);
 
+                bool sameFormation = victim != null && ReferenceEquals(attacker.Formation, victim.Formation);
+
                 if (victim != null)
                     victim.GetFormationFileAndRankInfo(out victimFileIndex, out victimRankIndex);
+
+                relativePosition = sameFormation
+                    ? LiveArcCensus.RelativePosition(attackerFileIndex, rankIndex, victimFileIndex, victimRankIndex)
+                    : LiveArcCensus.OtherFormationBucket;
 
                 // Same idiom as AttackGatePatches.CanSwing: null when unarmed.
                 WeaponComponentData weapon = attacker.WieldedWeapon.CurrentUsageItem;
@@ -180,11 +196,10 @@ namespace ProperShieldWalls
             {
                 // A diagnostic must never take the game down, and this runs per collision. Record
                 // what we managed to read rather than dropping the sample entirely; a key with
-                // wpn=unarmed / rel=unknown is still a countable event.
+                // wpn=unarmed / rel=other-formation is still a countable event -- and never "front".
+                relativePosition = LiveArcCensus.OtherFormationBucket;
             }
 
-            string relativePosition = LiveArcCensus.RelativePosition(
-                attackerFileIndex, rankIndex, victimFileIndex, victimRankIndex);
             bool isAlternativeAttack = cd.IsAlternativeAttack;
 
             string key = LiveArcCensus.BuildKey(

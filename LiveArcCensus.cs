@@ -17,6 +17,13 @@ namespace ProperShieldWalls
     internal static class LiveArcCensus
     {
         /// <summary>
+        /// Bucket for a live-arc collision between two agents in DIFFERENT formations. File/rank
+        /// indices from GetFormationFileAndRankInfo are per-formation, so comparing them across
+        /// formations is a coincidence, not a position -- see Diagnostics.RecordLiveArc (F3).
+        /// </summary>
+        internal const string OtherFormationBucket = "other-formation";
+
+        /// <summary>
         /// Rank 0/1/2 are reported exactly because they are the ones the feature is about; deeper
         /// ranks collapse. A detached unit reports -1 from GetFormationFileAndRankInfo and must NOT
         /// be silently bucketed as rank 0 — that would invent front-rankers that do not exist.
@@ -95,7 +102,8 @@ namespace ProperShieldWalls
         }
 
         /// <summary>
-        /// True for any weapon class whose name contains "Polearm" (OneHandedPolearm, TwoHandedPolearm).
+        /// True for any weapon class whose name contains "Polearm" -- OneHandedPolearm,
+        /// TwoHandedPolearm, and LowGripPolearm all match the substring test.
         /// Javelin is deliberately NOT counted here: what we are measuring is reach, which a javelin lacks.
         /// </summary>
         internal static bool IsPolearmClass(string weaponClassName)

@@ -253,4 +253,22 @@ public class LiveArcCensusTests
     {
         Assert.False(LiveArcCensus.IsPolearmClass(""));
     }
+
+    [Fact]
+    public void IsPolearmClass_TrueForLowGripPolearm()
+    {
+        // The substring match also catches LowGripPolearm; the doc comment must say so (F5).
+        Assert.True(LiveArcCensus.IsPolearmClass("LowGripPolearm"));
+    }
+
+    // --- F3: cross-formation bucket ---
+
+    [Fact]
+    public void OtherFormationBucket_IsTheExpectedString()
+    {
+        // Diagnostics.RecordLiveArc buckets a cross-formation collision to this constant instead
+        // of calling RelativePosition on incomparable per-formation indices. Referenced by name
+        // so a rename here is a deliberate, visible change, not a silent drift.
+        Assert.Equal("other-formation", LiveArcCensus.OtherFormationBucket);
+    }
 }
