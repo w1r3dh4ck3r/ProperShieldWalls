@@ -94,6 +94,21 @@ and cannot waste one.
 **Zero gameplay change.** The `live-arc` guard still rejects exactly as it does today. Nothing about any
 collision outcome changes. We only record what is being rejected.
 
+### 4.0 Where the logic lives — pure vs. game-coupled
+
+`ProperShieldWalls.Tests` source-links **only pure-logic files** (`CrowdState.cs`, `AttackRemap.cs`,
+`ShieldRotation.cs`) and its csproj states they *must not reference TaleWorlds types*. `Diagnostics.cs`
+references MCM and is therefore untestable by construction.
+
+So the split follows the repo's established pattern:
+
+- **`LiveArcCensus.cs` (NEW, pure)** — bucketing and key construction, primitives in and a `string` out.
+  No TaleWorlds, no MCM. Source-linked into the test project and unit tested.
+- **`Diagnostics.cs`** — owns the dictionary and the adapter that reads TaleWorlds types off the `Agent`
+  and `AttackCollisionData`, then delegates key-building to `LiveArcCensus`.
+
+`LangVersion` is **7.3** — no switch expressions, no target-typed `new`, no `is not`.
+
 ### 4.1 `Diagnostics.cs`
 
 Add a census following the existing `_formationCensus` pattern (`Diagnostics.cs:180-189`) — aggregated by
@@ -160,9 +175,12 @@ That path is reached only for friendly collisions — the `enemy` guard returns 
 
 ### 4.4 Tests
 
-Extend the existing xUnit project. The census key builder is pure string/bucket logic and is unit
-testable without the game: rank bucketing (including −1 → `detached`), length bucketing at each boundary,
-and null-weapon → `unarmed`. No test can cover the Harmony path; that is what the battle is for.
+Extend the existing xUnit project, adding `<Compile Include="../LiveArcCensus.cs" Link="LiveArcCensus.cs" />`
+to `ProperShieldWalls.Tests.csproj`. `LiveArcCensus` is pure string/bucket logic and is fully unit
+testable without the game: rank bucketing (including −1 → `detached`), length bucketing at every
+boundary, and null/absent weapon → `unarmed`.
+
+No test can cover the Harmony path or the `Agent` reads; that is what the battle is for.
 
 ---
 
@@ -195,7 +213,9 @@ It is `RequireRestart = false` (`Settings.cs:57`), so no relaunch is needed — 
 (`Behaviours/CrowdStateBehavior.cs:52-53`), so it must be on **before the mission ends**, and the mission
 must end cleanly.
 
-1. Build and deploy. **`OutputPath` deploys straight into the live game folder** — the game must be closed.
+1. Build, then deploy. **Build output stays inside the repo** (`bin/$(Configuration)/`); deploy is a
+   separate, deliberate `cp` — see `Directory.Build.targets`, which fixed the old build-equals-deploy
+   footgun. The game must be closed for the deploy step, not the build.
 2. Mark enables **MCM → Proper Shield Walls → Debug → Diagnostic Logging**.
 3. Fight one battle with a spear-heavy formation, in a packed order (Shield Wall or Line), and let it end
    normally rather than quitting out.
