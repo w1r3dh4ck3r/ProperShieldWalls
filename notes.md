@@ -1,5 +1,54 @@
 # ProperShieldWalls — AI Handoff Log
 
+## 2026-07-21 (pt2): STAGE 1 ANSWERED — §5 row 3 FIRES. Blocker 2 is real; wielding fix comes FIRST.
+
+Battle 2 fought to spec: `ShieldWall spacing=0 interval=0.000 eligible=1 x1215` present, shield rotation
+fired 1412 swaps, `cramped=0`, 6296 live-arc rejects, cross-check **MATCH**. Valid sample.
+
+### The verdict (pre-registered §5, evaluated in order — first match decides)
+| Row | Test | Value | Fires? |
+|---|---|---|---|
+| 1 | rank>=1 < 5% of weapon strikes | **80.6%** | no |
+| 2 | rank>=1 polearm Thrust >= 20% of weapon strikes | **2.6%** | no |
+| 3 | rank>=1 >=5% but <20% of them carry reach>=200 | **0.0% of rank>=1** | **FIRES** |
+
+**=> Blocker 2 is REAL. Stage 2 is the WIELDING fix first; the collision fix alone would have been wasted.**
+
+### The conclusion does NOT rest on the reach>=200 threshold (which is badly chosen — see below)
+Counting **polearms of ANY length**, rear ranks wield one in only **108 of 3387 rank>=1 strikes = 3.2%**.
+**88.2% of rank>=1 strikes are Swings.** Rear ranks are not idle — they attack constantly — they are simply
+holding swords. That is Blocker 2 stated directly, independent of any length cutoff.
+
+### The premise IS sound, and formation is the variable — measured, not assumed
+The `IN FRONT` line must be read against **rank>=1 polearm thrusts**, NOT against `% of rank>=1` (that
+denominator mixes in ~3000 sword swings and reads as ~1%, which is meaningless). Correctly:
+- **Loose Line (spacing=2): 9/282 = 3.2%** of rear-rank spear thrusts blocked by the man directly ahead.
+- **Packed ShieldWall (spacing=0): 32/108 = 29.6%.**
+
+**~30% in a packed formation.** So the 07-21 pt1 worry — that `rel=front` was negligible and Stage 2 targeted a
+case that barely occurs — is **REFUTED for packed order**. It was a loose-formation artifact, exactly as
+predicted. Once rear ranks actually hold spears, the collision fix has a real target.
+
+### Instrument defects found by using it (fix before any Stage 2 measurement)
+1. **`reach>=200` is mis-calibrated and row 3 is near-degenerate.** The threshold came from my assumption of
+   "~3m spears"; that is wrong for this game's data. Across ~9000 events in two battles the ONLY buckets ever
+   seen are `<120` and `120-199` — `200-279` and `280+` never appeared once. Native `mpitems.xml`'s entire
+   roster tops out at weapon_length=200. Long weapons ARE constructible (crafted Handle pieces reach 295.5cm,
+   verified in `crafting_pieces.xml`), so it is not impossible — but it is the extreme tail, so a row testing
+   "<20% carry >=200" fires almost regardless of the army. **Re-bucket around 150/180/200 before reusing it.**
+   `WeaponLength` itself is sound: verified by decompile to be a plain int cm read from the `weapon_length`
+   XML attribute.
+2. **The `IN FRONT` line prints the wrong denominator** (`% of weapon strikes`, `% of rank>=1`). The only
+   meaningful one is `% of rank>=1 polearm thrusts`. This is the SAME denominator trap the Task 7 review caught
+   on the reach line, surviving on a different line — and it nearly produced a wrong read here (1% vs 30%).
+
+### Next
+Stage 2 = **wielding fix first**: make rear-rank troops actually draw their polearm. Likely lands in RBMFork or
+PickupMeleeWeapons, NOT here. Note the standing constraint from memory
+[[project_spearpreference_clobbers_rbm_favors]] before touching weapon favours — that route is dead on arrival.
+Then re-measure with the two instrument defects above fixed, and only then consider the collision fix.
+
+
 ## 2026-07-21: rank-2 thrust census ARMED — battle 1 is a VALID INSTRUMENT RUN but an OUT-OF-SPEC SAMPLE
 
 Stage 1 instrument (branch `feat/rank2-thrust-census`, 9 commits, 95 tests, deployed `fac57bd`) fired correctly
