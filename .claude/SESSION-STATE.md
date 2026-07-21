@@ -34,12 +34,18 @@ Plan gap found and fixed during Task 2: the main csproj is old-style and needs a
   `EnableMissionTickDiagnostics`. The `TryRemove` is load-bearing and stays unconditional.
 
 ## ⏳ AWAITING MARK (ask before anything else)
-1. **Sprint 3 measurement battle.** MCM → Proper Shield Walls → Debug → **Diagnostic Logging = ON**
-   (`RequireRestart=false`, no relaunch; the saved MCM JSON overrides the C# default of `false`, so this step
-   is mandatory). Then a **spear-heavy force in a packed order** (Shield Wall or Line), fought to a **normal
-   end** — the report is written by `OnEndMission`, so quitting out produces nothing. Read
-   `Documents/Mount and Blade II Bannerlord/PSW_diag.log`, `==== mission report ====` →
-   `live-arc census`. **Turn logging back OFF afterwards.**
+1. **Sprint 3 measurement battle.** Two MCM toggles first (both `RequireRestart=false`, no relaunch — but the
+   saved MCM JSON overrides the C# defaults, so both are mandatory):
+   - Debug → **Diagnostic Logging = ON**
+   - General → **Cramped Attack Gating = OFF** (it rewrites crowded AI horizontal swings to overheads, which
+     poisons the `dir` distribution; strike *type* is unaffected, so rows 2 and 4 survive it either way)
+
+   Then a **spear-heavy force in a packed order** (Shield Wall or Line), fought to a **normal end** — the
+   report is written by `OnEndMission`, so quitting out produces nothing. Read
+   `Documents/Mount and Blade II Bannerlord/PSW_diag.log`, `==== mission report ====`. The `live-arc`
+   section prints the §5 answers directly; do NOT hand-aggregate the raw keys. Check the cross-check line
+   first — `MISMATCH` voids the numbers. **Both toggles back to their old values afterwards.**
+
    **An absent census block is NOT a result** — it is indistinguishable from "no rank≥1 rejections exist",
    which is itself one of the decision-rule outcomes. Prove the block appears on a throwaway mission first.
 2. **Do heavy battles feel like SLOW MOTION?** — the dt-clamp question below. Still unasked/unanswered.
