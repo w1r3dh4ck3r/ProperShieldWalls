@@ -116,6 +116,7 @@
     <Compile Include="CrowdState.cs" />
     <Compile Include="AttackRemap.cs" />
     <Compile Include="ShieldRotation.cs" />
+    <Compile Include="LiveArcCensus.cs" />
     <!-- Behaviours -->
     <Compile Include="Behaviours\CrowdStateBehavior.cs" />
     <Compile Include="Behaviours\AttackGateComponent.cs" />

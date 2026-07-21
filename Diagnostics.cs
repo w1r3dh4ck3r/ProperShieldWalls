@@ -4,6 +4,8 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using MCM.Abstractions.Base.Global;
+using TaleWorlds.Core;
+using TaleWorlds.MountAndBlade;
 
 namespace ProperShieldWalls
 {
@@ -46,6 +48,9 @@ namespace ProperShieldWalls
         private static int _windupBypassed;
         private static readonly Dictionary<string, int> _windupRejects = new Dictionary<string, int>();
 
+        // --- Live-arc census (Stage 1 measurement: who is the live-arc guard turning away?) ---
+        private static readonly Dictionary<string, int> _liveArcCensus = new Dictionary<string, int>();
+
         // --- Friendly block passthrough ---
         private static int _friendlyBlocksNeutralised;
 
@@ -84,6 +89,7 @@ namespace ProperShieldWalls
             _remappedAgents.Clear();
             _windupBypassed = 0;
             _windupRejects.Clear();
+            _liveArcCensus.Clear();
             _friendlyBlocksNeutralised = 0;
             _rotationSwaps = 0;
             _rotationShieldlessFront = 0;
@@ -120,6 +126,58 @@ namespace ProperShieldWalls
             int n;
             _windupRejects.TryGetValue(rejectedBecause, out n);
             _windupRejects[rejectedBecause] = n + 1;
+        }
+
+        /// <summary>
+        /// One live-arc rejection. Reads rank and wielded weapon off the attacker here rather than at
+        /// the call site, so the [MBCallback] patch stays a one-liner.
+        ///
+        /// Counted unconditionally, matching RecordWindup: only the report WRITE is gated on the
+        /// DiagnosticLogging setting. The path is already filtered to friendly collisions by the
+        /// patch's own `enemy` guard, so the volume is bounded (~1071/mission as measured 2026-07-10).
+        /// </summary>
+        internal static void RecordLiveArc(Agent attacker, ref AttackCollisionData cd)
+        {
+            if (attacker == null) return;
+
+            int rankIndex = -1;
+            string weaponClassName = null;
+            int weaponLength = 0;
+
+            try
+            {
+                // Same idiom (and the same -1 detached contract) as ShieldRotationBehavior.
+                // File index is discarded: the census buckets by rank only.
+                int fileIndex;
+                attacker.GetFormationFileAndRankInfo(out fileIndex, out rankIndex);
+
+                // Same idiom as AttackGatePatches.CanSwing: null when unarmed.
+                WeaponComponentData weapon = attacker.WieldedWeapon.CurrentUsageItem;
+                if (weapon != null)
+                {
+                    weaponClassName = weapon.WeaponClass.ToString();
+                    // WeaponLength is an int on v1.4.7. If the build reports a type mismatch here,
+                    // wrap it: (int)weapon.WeaponLength — do not change the census signature.
+                    weaponLength = weapon.WeaponLength;
+                }
+            }
+            catch
+            {
+                // A diagnostic must never take the game down, and this runs per collision. Record
+                // what we managed to read rather than dropping the sample entirely; a key with
+                // wpn=unarmed is still a countable event.
+            }
+
+            string key = LiveArcCensus.BuildKey(
+                rankIndex,
+                weaponClassName,
+                weaponLength,
+                cd.StrikeType,               // raw; LiveArcCensus.StrikeLabel maps it three ways
+                cd.AttackDirection.ToString());
+
+            int n;
+            _liveArcCensus.TryGetValue(key, out n);
+            _liveArcCensus[key] = n + 1;
         }
 
         internal static void RecordFriendlyBlockNeutralised()
@@ -237,6 +295,18 @@ namespace ProperShieldWalls
             else
             {
                 foreach (var kv in _formationCensus)
+                    Append(string.Format(CultureInfo.InvariantCulture,
+                        "[PSW]        {0}  x{1}", kv.Key, kv.Value));
+            }
+
+            Append("[PSW]      live-arc census (who the guard turned away):");
+            if (_liveArcCensus.Count == 0)
+            {
+                Append("[PSW]        (no live-arc rejections seen at all)");
+            }
+            else
+            {
+                foreach (var kv in _liveArcCensus)
                     Append(string.Format(CultureInfo.InvariantCulture,
                         "[PSW]        {0}  x{1}", kv.Key, kv.Value));
             }
