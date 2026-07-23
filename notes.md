@@ -1,5 +1,23 @@
 # ProperShieldWalls — AI Handoff Log
 
+
+## 2026-07-23 (touched from the claude-harness session) — deleted the unconfigured file-placement.md
+
+`docs/agent/file-placement.md` was still the shipped template. `scripts/inject-context.mjs:110` pushes that
+file into context whenever a new file is created under `src/` (gate at line 90), so this project was
+injecting a placeholder — one live sentence plus a commented-out Next.js layer example under the line
+"Customize this file for your project". Context noise, and proof the injection was never configured here.
+
+Deleted rather than filled in: `inject-context.mjs` skips the file via `existsSync`, so absence is the clean
+state, and inventing a layout nobody verified would be worse than nothing. This repo's real docs
+(`diagnostics.md`, `harmony-patches.md`, `mcm-settings.md`) and its configured ROUTES block are untouched and
+still fire on edits to `Patches/` and `Behaviours/`; only the placeholder went. It was dormant here anyway —
+there is no `src/` directory, so the pass-1 gate never opened.
+
+Found by an audit of all 14 project-level `.claude/settings.json`:
+`~/AI/projects/claude-harness/audits/2026-07-23-project-settings-audit.md`.
+
+---
 ## 2026-07-21 (pt2): STAGE 1 ANSWERED — §5 row 3 FIRES. Blocker 2 is real; wielding fix comes FIRST.
 
 Battle 2 fought to spec: `ShieldWall spacing=0 interval=0.000 eligible=1 x1215` present, shield rotation
