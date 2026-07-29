@@ -1,6 +1,24 @@
 # ProperShieldWalls — AI Handoff Log
 
 
+## 2026-07-29 — closing the loop: the wielding fix was VALIDATED, and this repo's census was the outcome instrument
+
+No PSW code touched (still `9fae4a1` / `master@fb6bf4b`). Doc correction only. The 07-21 pt3 entry below
+left the wield validation as a conditional ("if one battle is to both calibrate AND validate,
+`DiagnosticLogging` must be armed here") — that battle happened the same day and the SESSION-STATE files
+in both repos had gone stale still saying "awaiting Mark's battle." Verified against git + live config,
+not docs: SpearPreferenceFork git `835b747` ("VALIDATED in-game") post-dates its own state file, and the
+live MCM config already reads `DiagnosticLogging=False` / `CrampedAttackGating=True` (toggles restored).
+
+**The outcome, from THIS repo's census (2026-07-21 15:20:35 battle):** rank≥1 polearm wield
+**3.2% → 39.5%**, swing share 88.2% → 52.6%, absolute polearm thrusts 108 → 408 (3.8×). Mark:
+*"I like the way the battle is going visually."* SpearPreferenceFork defaults kept, no code change.
+
+**Still-open debt (not blocking — the census did its job):** the two instrument defects stay unfixed —
+`reach>=200` bucketing (`LiveArcCensus.cs:48-49`) and the `IN FRONT` denominator (`LiveArcAggregate.cs:137`).
+They only bite if this census is reused for a Stage 2 collision measurement, which is not built.
+
+---
 ## 2026-07-23 (touched from the claude-harness session) — deleted the unconfigured file-placement.md
 
 `docs/agent/file-placement.md` was still the shipped template. `scripts/inject-context.mjs:110` pushes that

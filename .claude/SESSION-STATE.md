@@ -45,10 +45,9 @@ The branch is fully contained in master and is safe to delete.
   `EnableMissionTickDiagnostics`. The `TryRemove` is load-bearing and stays unconditional.
 
 ## ⏳ AWAITING MARK (ask before anything else)
-1. **Restore the two measurement toggles.** They were changed for the census run and are still set for it:
-   MCM → Proper Shield Walls → Debug → **Diagnostic Logging back OFF** (the log is already ~646 KB), and
-   General → **Cramped Attack Gating back ON**. Neither needs a restart.
-2. **Do heavy battles feel like SLOW MOTION?** — the dt-clamp question below. Still unasked/unanswered.
+1. **Do heavy battles feel like SLOW MOTION?** — the dt-clamp question below. Still unasked/unanswered.
+   (The measurement toggles are already restored — verified on the live config 2026-07-29:
+   `DiagnosticLogging=False`, `CrampedAttackGating=True`.)
 
 ## PARKED (2026-07-13) — RBMAI re-emits its ENTIRE detour set every mission. Root NAMED, no symptom, NOT hunted.
 This is the `HarmonySharedState.originals +230/battle` item the census logged and nobody chased. **It is NOT a
@@ -152,19 +151,22 @@ native thunk is exactly the shape that yields a faulting address with no managed
 battles and see if the AVEs stop. Costs nothing to set up.
 
 ## Files to touch next
-**The wielding fix is DONE and lives in `~/AI/projects/SpearPreferenceFork`** (branch
-`feat/rear-rank-spear-wield`, shipped + deployed 2026-07-21). It did not land in RBMFork or
-PickupMeleeWeapons: the root cause was `SpearPreferenceFork`'s OWN sidearm Schmitt trigger being
-rank-blind, so a second-rank man ~2 m from the enemy his neighbour is fighting tripped the "enemy on top
-of me, draw the sidearm" rule. That model is the LAST WRITER of the favour multipliers, so this was never
-the dead-on-arrival RBM-favour path. See that repo's `.claude/SESSION-STATE.md` and
-`docs/superpowers/specs/2026-07-21-rear-rank-spear-wielding-design.md`.
+**The wielding fix is DONE and VALIDATED IN-GAME 2026-07-21.** It lives in
+`~/AI/projects/SpearPreferenceFork` (branch `feat/rear-rank-spear-wield`, shipped + deployed). It did not
+land in RBMFork or PickupMeleeWeapons: the root cause was `SpearPreferenceFork`'s OWN sidearm Schmitt
+trigger being rank-blind, so a second-rank man ~2 m from the enemy his neighbour is fighting tripped the
+"enemy on top of me, draw the sidearm" rule. That model is the LAST WRITER of the favour multipliers, so
+this was never the dead-on-arrival RBM-favour path.
 
-**What this repo may be asked for next:** if one battle is to both calibrate the new settings AND validate
-the fix, **PSW's `DiagnosticLogging` must be armed in the same battle** — SpearPreferenceFork's census
-records the mod's preference *decision*, never the actual wield, so the polearm-wield outcome number can
-only come from here. The two instrument defects noted above (reach bucketing, `IN FRONT` denominator) are
-still unfixed and must be fixed before this census is reused.
+**The validation used THIS repo's census in the same battle** (15:20:35): PSW recorded rank≥1 polearm
+wield **3.2% → 39.5%**, swing share 88.2% → 52.6%, absolute polearm thrusts 108 → 408 (3.8×). Mark:
+*"I like the way the battle is going visually."* SpearPreferenceFork defaults kept, no code change. Full
+write-up: `~/AI/projects/bannerlordmodding/notes.md` (2026-07-21 pt3).
+
+**Still-open debt in this repo (not blocking — the census's job is done):** the two instrument defects
+noted above — `reach>=200` bucketing (`LiveArcCensus.cs:48-49`) and the `IN FRONT` denominator
+(`LiveArcAggregate.cs:137`, should be `% of rank≥1 polearm thrusts`) — remain unfixed. They only matter
+IF the census is reused for a Stage 2 collision measurement.
 
 **Dead on arrival, do not propose it:** RBM favour multipliers. `SpearPreferenceFork` resets melee/polearm
 favours to `1f` for every human, killing RBM's own multipliers game-wide, and Mark ruled that by design
@@ -176,4 +178,4 @@ If Stage 2's collision half is ever built, the file here is `Patches/WindupTrans
 un-frozen by `ContinueChecking`, actually reaches the enemy behind. Only an in-game test settles that.
 Re-Read any file before editing — compaction wipes the harness's read-state.
 
-<!-- session-state-sync: last written by session 19291bfe at 2026-07-17 20:29:52 -0300 -->
+<!-- session-state-sync: last written by session fef42af2 at 2026-07-29 18:43:41 -0300 -->
