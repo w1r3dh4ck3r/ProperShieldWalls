@@ -46,9 +46,12 @@ in-game 2026-07-21 (was still framed as "awaiting battle"). No PSW code changed 
   `EnableMissionTickDiagnostics`. The `TryRemove` is load-bearing and stays unconditional.
 
 ## ⏳ AWAITING MARK (ask before anything else)
-1. **Do heavy battles feel like SLOW MOTION?** — the dt-clamp question below. Still unasked/unanswered.
-   (The measurement toggles are already restored — verified on the live config 2026-07-29:
-   `DiagnosticLogging=False`, `CrampedAttackGating=True`.)
+1. **Do heavy battles feel like SLOW MOTION?** — the dt-clamp question below. **Status (2026-07-29): still
+   open, unanswered, and DEFERRED.** Mark's declared next work is the claude-harness SESSION-STATE
+   staleness **write-through gate** (a different repo — see its handoff), not this. So dt-clamp stays the
+   standing PSW gameplay question awaiting Mark's one-battle in-game verdict; nothing to do here until he
+   gives it. (Measurement toggles already restored — live config 2026-07-29: `DiagnosticLogging=False`,
+   `CrampedAttackGating=True`.)
 
 ## PARKED (2026-07-13) — RBMAI re-emits its ENTIRE detour set every mission. Root NAMED, no symptom, NOT hunted.
 This is the `HarmonySharedState.originals +230/battle` item the census logged and nobody chased. **It is NOT a
@@ -87,7 +90,7 @@ and it would have rebuilt that wrong belief every session.
 upstream re-patches per mission (likely to catch mission-assembly types that load late); hoisting it to `SubModule`
 is a **behaviour change needing in-game validation** — an expensive battle from Mark — bought with no symptom.
 
-## Next Step — the dt clamp: START FROM THE SYMPTOM, NOT THE COUNTER
+## Next Step — DEFERRED (immediate next is the claude-harness staleness gate, a different repo). The dt clamp: START FROM THE SYMPTOM, NOT THE COUNTER
 `MissionTickGuard` clamped dt **62,000 times in one launch** (2026-07-13). **Before hunting this, know that the
 count is expected by construction:** the clamp fires whenever a frame exceeds the cap, and above
 `HighLoadAgentThreshold = 800` agents the cap is `MaxDtHighLoad = 0.020f` — **50 fps**. A 1000-agent battle almost
