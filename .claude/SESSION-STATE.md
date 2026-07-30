@@ -18,9 +18,10 @@ Spec (carries both correction boxes): `docs/superpowers/specs/2026-07-21-rank2-t
 Plan: `docs/superpowers/plans/2026-07-21-rank2-thrust-measurement.md`
 Ledger: `.superpowers/sdd/progress.md` (Sprint 3). Numbers + reasoning: `notes.md` 2026-07-21 pt1 + pt2.
 
-## Last Action (2026-07-21) — merged, redeployed from master, wrapped
-Branch `feat/rank2-thrust-census` merged `--no-ff` into master and redeployed so the manifest names master.
-The branch is fully contained in master and is safe to delete.
+## Last Action (2026-07-29) — reconciled the pointer to the validated wielding fix
+Committed `1591663`: SESSION-STATE + notes.md corrected to reflect the rear-rank wielding fix validated
+in-game 2026-07-21 (was still framed as "awaiting battle"). No PSW code changed (still `9fae4a1`).
+(Prior: `feat/rank2-thrust-census` merged `--no-ff` into master 2026-07-21; that branch is safe to delete.)
 
 ## ⚠️ TWO INSTRUMENT DEFECTS — fix BEFORE reusing this census for anything
 1. **`reach>=200` bucket is mis-calibrated.** Across ~9000 events only `<120` and `120-199` ever appeared;
